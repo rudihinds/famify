@@ -13,16 +13,19 @@ import {
   Users,
   TrendingUp,
   Clock,
+  ChevronDown,
 } from "lucide-react-native";
 import QRCodeGenerator from "../../components/QRCodeGenerator";
 import ChildProgressCard from "../../components/ChildProgressCard";
 import PendingActionsSection from "../../components/PendingActionsSection";
+import LogoutButton from "../../components/LogoutButton";
 
 export default function ParentDashboard() {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
   const [showQRGenerator, setShowQRGenerator] = useState(false);
+  const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
 
   // Mock data - in real app this would come from API
   const children = [
@@ -69,20 +72,6 @@ export default function ParentDashboard() {
     },
   ];
 
-  const handleLogout = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          await dispatch(signOut());
-          router.replace("/");
-        },
-      },
-    ]);
-  };
-
   return (
     <SafeAreaView className="flex-1 bg-indigo-50">
       <StatusBar style="dark" />
@@ -98,9 +87,23 @@ export default function ParentDashboard() {
               {user?.user_metadata?.first_name || "Parent"}
             </Text>
           </View>
-          <TouchableOpacity onPress={handleLogout} className="p-2">
-            <Settings size={24} color="white" />
-          </TouchableOpacity>
+          <View className="relative">
+            <TouchableOpacity
+              onPress={() => setShowSettingsDropdown(!showSettingsDropdown)}
+              className="p-2 flex-row items-center"
+            >
+              <Settings size={24} color="white" />
+              <ChevronDown size={16} color="white" className="ml-1" />
+            </TouchableOpacity>
+
+            {showSettingsDropdown && (
+              <View className="absolute top-12 right-0 bg-white rounded-lg shadow-lg py-2 min-w-[150px] z-10">
+                <View className="px-4 py-2">
+                  <LogoutButton variant="text" />
+                </View>
+              </View>
+            )}
+          </View>
         </View>
       </View>
 

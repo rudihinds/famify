@@ -52,7 +52,7 @@ export default function ParentRegisterScreen() {
     }
 
     try {
-      await dispatch(
+      const result = await dispatch(
         signUpParent({
           email: email.trim(),
           password,
@@ -60,11 +60,18 @@ export default function ParentRegisterScreen() {
           lastName: lastName.trim(),
         }),
       ).unwrap();
-      Alert.alert(
-        "Success",
-        "Account created successfully! Please check your email to verify your account.",
-        [{ text: "OK", onPress: () => router.replace("/parent/dashboard") }],
-      );
+
+      if (result.needsEmailConfirmation) {
+        Alert.alert(
+          "Check Your Email",
+          "Account created successfully! Please check your email and click the confirmation link to complete your registration.",
+          [{ text: "OK", onPress: () => router.replace("/auth/parent-login") }],
+        );
+      } else {
+        Alert.alert("Success", "Account created successfully!", [
+          { text: "OK", onPress: () => router.replace("/parent/dashboard") },
+        ]);
+      }
     } catch (error: any) {
       Alert.alert(
         "Registration Failed",
@@ -91,7 +98,13 @@ export default function ParentRegisterScreen() {
               <ArrowLeft size={24} color="#4f46e5" />
             </TouchableOpacity>
 
-            <View className="bg-white rounded-3xl p-8 shadow-lg">
+            <View
+              className="bg-white rounded-3xl p-8"
+              style={{
+                boxShadow:
+                  "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+              }}
+            >
               <Text className="text-3xl font-bold text-center mb-2 text-indigo-800">
                 Create Account
               </Text>
@@ -110,6 +123,8 @@ export default function ParentRegisterScreen() {
                     value={firstName}
                     onChangeText={setFirstName}
                     autoCapitalize="words"
+                    autoComplete="given-name"
+                    textContentType="givenName"
                   />
                 </View>
                 <View className="flex-1 ml-2">
@@ -122,6 +137,8 @@ export default function ParentRegisterScreen() {
                     value={lastName}
                     onChangeText={setLastName}
                     autoCapitalize="words"
+                    autoComplete="family-name"
+                    textContentType="familyName"
                   />
                 </View>
               </View>
@@ -136,6 +153,7 @@ export default function ParentRegisterScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoComplete="email"
+                  textContentType="emailAddress"
                 />
               </View>
 
@@ -149,10 +167,12 @@ export default function ParentRegisterScreen() {
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                     autoComplete="new-password"
+                    textContentType="newPassword"
                   />
                   <TouchableOpacity
                     onPress={() => setShowPassword(!showPassword)}
                     className="absolute right-4 top-4"
+                    style={{ pointerEvents: "auto" }}
                   >
                     {showPassword ? (
                       <EyeOff size={20} color="#6b7280" />
@@ -175,10 +195,12 @@ export default function ParentRegisterScreen() {
                     onChangeText={setConfirmPassword}
                     secureTextEntry={!showConfirmPassword}
                     autoComplete="new-password"
+                    textContentType="newPassword"
                   />
                   <TouchableOpacity
                     onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-4 top-4"
+                    style={{ pointerEvents: "auto" }}
                   >
                     {showConfirmPassword ? (
                       <EyeOff size={20} color="#6b7280" />
@@ -195,8 +217,11 @@ export default function ParentRegisterScreen() {
 
               <TouchableOpacity
                 onPress={handleRegister}
-                className="bg-indigo-600 py-4 px-6 rounded-xl mb-4"
+                className={`py-4 px-6 rounded-xl mb-4 ${
+                  isLoading ? "bg-indigo-400" : "bg-indigo-600"
+                }`}
                 disabled={isLoading}
+                activeOpacity={0.8}
               >
                 <Text className="text-white font-bold text-lg text-center">
                   {isLoading ? "Creating Account..." : "Create Account"}

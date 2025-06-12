@@ -1,23 +1,25 @@
 import { createClient } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 
-// These would be set in your environment variables
-const supabaseUrl =
-  process.env.EXPO_PUBLIC_SUPABASE_URL || "https://your-project.supabase.co";
-const supabaseAnonKey =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "your-anon-key";
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
 
-// Conditionally import AsyncStorage only for React Native
-let AsyncStorage: any = null;
-if (Platform.OS !== "web") {
-  AsyncStorage = require("@react-native-async-storage/async-storage").default;
-}
+// Simple storage getter
+const getAsyncStorage = () => {
+  if (Platform.OS === "web") return undefined;
+  try {
+    return require("@react-native-async-storage/async-storage").default;
+  } catch {
+    return null;
+  }
+};
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: Platform.OS === "web" ? undefined : AsyncStorage,
+    storage: getAsyncStorage(),
     autoRefreshToken: true,
     persistSession: Platform.OS !== "web",
     detectSessionInUrl: Platform.OS === "web",
+    flowType: "pkce",
   },
 });

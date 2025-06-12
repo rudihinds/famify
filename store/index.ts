@@ -1,47 +1,76 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { persistStore, persistReducer } from "redux-persist";
 import { combineReducers } from "@reduxjs/toolkit";
+import { Platform } from "react-native";
 import authSlice from "./slices/authSlice";
 import childSlice from "./slices/childSlice";
 import connectionSlice from "./slices/connectionSlice";
 
-// Conditionally import AsyncStorage based on platform
-let AsyncStorage: any;
+// Storage implementation with proper error handling
+let storage: any;
 
-// Check if we're in a React Native environment
-const isReactNative =
-  typeof navigator !== "undefined" && navigator.product === "ReactNative";
-
-if (isReactNative) {
-  AsyncStorage = require("@react-native-async-storage/async-storage").default;
-} else {
-  // For web, use a localStorage-based storage with proper window checks
-  AsyncStorage = {
-    getItem: (key: string) => {
-      if (typeof window !== "undefined" && window.localStorage) {
-        return Promise.resolve(localStorage.getItem(key));
+if (Platform.OS === "web") {
+  // Web storage with improved error handling
+  storage = {
+    getItem: async (key: string): Promise<string | null> => {
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          const item = window.localStorage.getItem(key);
+          return Promise.resolve(item);
+        }
+        return Promise.resolve(null);
+      } catch (error) {
+        console.warn("localStorage getItem failed:", error);
+        return Promise.resolve(null);
       }
-      return Promise.resolve(null);
     },
-    setItem: (key: string, value: string) => {
-      if (typeof window !== "undefined" && window.localStorage) {
-        localStorage.setItem(key, value);
+    setItem: async (key: string, value: string): Promise<void> => {
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem(key, value);
+          return Promise.resolve();
+        }
+        return Promise.resolve();
+      } catch (error) {
+        console.warn("localStorage setItem failed:", error);
+        return Promise.resolve();
       }
-      return Promise.resolve();
     },
-    removeItem: (key: string) => {
-      if (typeof window !== "undefined" && window.localStorage) {
-        localStorage.removeItem(key);
+    removeItem: async (key: string): Promise<void> => {
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.removeItem(key);
+          return Promise.resolve();
+        }
+        return Promise.resolve();
+      } catch (error) {
+        console.warn("localStorage removeItem failed:", error);
+        return Promise.resolve();
       }
-      return Promise.resolve();
     },
   };
+} else {
+  // React Native storage
+  try {
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    storage = AsyncStorage;
+  } catch (error) {
+    console.warn("AsyncStorage not available, using fallback:", error);
+    // Fallback storage for testing or when AsyncStorage is not available
+    storage = {
+      getItem: async () => Promise.resolve(null),
+      setItem: async () => Promise.resolve(),
+      removeItem: async () => Promise.resolve(),
+    };
+  }
 }
 
 const persistConfig = {
   key: "root",
-  storage: AsyncStorage,
-  whitelist: ["auth", "child", "connection"],
+  storage,
+  whitelist: ["auth"],
+  debug: false,
 };
 
 const rootReducer = combineReducers({
@@ -57,7 +86,20 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
-        ignoredActions: ["persist/PERSIST", "persist/REHYDRATE"],
+        ignoredActions: [
+          "persist/PERSIST",
+          "persist/REHYDRATE",
+          "persist/REGISTER",
+          "persist/PURGE",
+          "persist/FLUSH",
+          "persist/PAUSE",
+          "FLUSH",
+          "REHYDRATE",
+          "PAUSE",
+          "PERSIST",
+          "PURGE",
+          "REGISTER",
+        ],
       },
     }),
 });

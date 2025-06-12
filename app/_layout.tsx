@@ -21,27 +21,37 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   const dispatch = useDispatch();
 
   useEffect(() => {
-    // Only initialize auth on client side
-    if (Platform.OS !== "web" || typeof window !== "undefined") {
-      // Get initial session
-      supabase.auth
-        .getSession()
-        .then(({ data: { session } }) => {
+    let mounted = true;
+    let subscription: any;
+
+    const initAuth = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (mounted) {
           dispatch(setSession(session));
-        })
-        .catch((error) => {
-          console.warn("Failed to get initial session:", error);
+        }
+      } catch (error) {
+        console.warn("Auth init failed:", error);
+      }
+
+      if (mounted) {
+        const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+          if (mounted) {
+            dispatch(setSession(session));
+          }
         });
+        subscription = data.subscription;
+      }
+    };
 
-      // Listen for auth changes
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, session) => {
-        dispatch(setSession(session));
-      });
+    initAuth();
 
-      return () => subscription.unsubscribe();
-    }
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
   }, [dispatch]);
 
   return <>{children}</>;
@@ -110,6 +120,14 @@ export default function RootLayout() {
               />
               <Stack.Screen
                 name="child/pin-login"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="auth/callback"
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="auth/confirm"
                 options={{ headerShown: false }}
               />
             </Stack>
