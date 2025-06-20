@@ -99,6 +99,7 @@ export const createChildProfile = createAsyncThunk(
         focus_areas: focusAreas,
         parent_id: parentId,
         famcoin_balance: 0,
+        pin_hash: "temp_hash_to_be_set", // Temporary value, will be updated during PIN creation
       })
       .select()
       .single();

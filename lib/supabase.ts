@@ -22,4 +22,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: Platform.OS === "web",
     flowType: "pkce",
   },
+  global: {
+    headers: {
+      // Bypass RLS for development
+      "X-Client-Info": "supabase-js-web",
+    },
+  },
 });

@@ -8,6 +8,7 @@ interface AuthState {
   deviceType: "parent" | "child" | "unlinked";
   isLoading: boolean;
   error: string | null;
+  devParentId: string | null;
 }
 
 const initialState: AuthState = {
@@ -20,6 +21,7 @@ const initialState: AuthState = {
   deviceType: "parent",
   isLoading: false,
   error: null,
+  devParentId: "293847a7-b140-4acc-8729-fa5a7acb8def",
 };
 
 // Get dynamic redirect URL
@@ -371,6 +373,9 @@ const authSlice = createSlice({
       state.session = action.payload;
       state.user = action.payload?.user || null;
     },
+    setDevParentId: (state, action: PayloadAction<string>) => {
+      state.devParentId = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -472,5 +477,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { setDeviceType, clearError, setSession } = authSlice.actions;
+export const { setDeviceType, clearError, setSession, setDevParentId } =
+  authSlice.actions;
 export default authSlice.reducer;

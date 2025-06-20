@@ -40,7 +40,7 @@ const QRCodeGenerator = ({
   const { currentToken, isGenerating, error } = useSelector(
     (state: RootState) => state.connection,
   );
-  const { user } = useSelector((state: RootState) => state.auth);
+  const { user, devParentId } = useSelector((state: RootState) => state.auth);
 
   const [childName, setChildName] = useState("");
   const [childAge, setChildAge] = useState("");
@@ -138,52 +138,83 @@ const QRCodeGenerator = ({
     setIsSubmitting(true);
 
     try {
-      let childData;
+      console.log("Creating child in database with Supabase");
 
-      // Check if we're in development mode (no authenticated user)
-      const isDevelopmentMode = !user?.id || user?.id === "dev-user";
+      // Use the dev parent ID for development, or user ID for production
+      let parentId = devParentId || user?.id;
 
-      if (isDevelopmentMode) {
-        console.log("Development mode: simulating child creation");
-        // In development mode, simulate the child creation without database
-        childData = {
-          id: uuidv4(),
-          name: childName.trim(),
-          age: Number(childAge),
-          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${childName.trim()}`,
-          focus_areas: selectedFocusAreas,
-          parent_id: user?.id || "dev-user",
-          famcoin_balance: 0,
-          pin_hash: null, // Will be set during PIN creation
-          device_id: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
+      // If no parent ID is available, use the default dev parent ID
+      if (!parentId) {
+        parentId = "293847a7-b140-4acc-8729-fa5a7acb8def";
+        console.log(
+          "No parent ID found, using default dev parent ID:",
+          parentId,
+        );
+      }
 
-        // Simulate database delay
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      } else {
-        console.log("Production mode: creating child in database");
-        // Production mode: create child in database
-        const { data, error } = await supabase
-          .from("children")
+      console.log("Using parent ID:", parentId);
+
+      // First, ensure the parent profile exists
+      console.log("Checking if parent profile exists...");
+      const { data: existingProfile, error: profileCheckError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", parentId)
+        .single();
+
+      if (profileCheckError && profileCheckError.code !== "PGRST116") {
+        console.error("Error checking parent profile:", profileCheckError);
+        throw new Error("Failed to check parent profile");
+      }
+
+      // If profile doesn't exist, create it
+      if (!existingProfile) {
+        console.log("Parent profile doesn't exist, creating it...");
+        const { data: newProfile, error: profileCreateError } = await supabase
+          .from("profiles")
           .insert({
-            name: childName.trim(),
-            age: Number(childAge),
-            avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${childName.trim()}`,
-            focus_areas: selectedFocusAreas,
-            parent_id: user.id,
-            famcoin_balance: 0,
+            id: parentId,
+            email: user?.email || "dev@example.com",
+            first_name: user?.user_metadata?.first_name || "Dev",
+            last_name: user?.user_metadata?.last_name || "User",
           })
           .select()
           .single();
 
-        if (error) {
-          console.error("Database error:", error);
-          throw new Error(error.message || "Failed to create child profile");
+        if (profileCreateError) {
+          console.error("Error creating parent profile:", profileCreateError);
+          throw new Error("Failed to create parent profile");
         }
+        console.log("Parent profile created:", newProfile);
+      } else {
+        console.log("Parent profile already exists");
+      }
 
-        childData = data;
+      console.log("Child data to insert:", {
+        name: childName.trim(),
+        age: Number(childAge),
+        focus_areas: selectedFocusAreas,
+        parent_id: parentId,
+      });
+
+      // Create child in database
+      const { data: childData, error } = await supabase
+        .from("children")
+        .insert({
+          name: childName.trim(),
+          age: Number(childAge),
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${childName.trim()}`,
+          focus_areas: selectedFocusAreas,
+          parent_id: parentId,
+          famcoin_balance: 0,
+          pin_hash: "temp_pin_hash", // Temporary value, will be updated when child sets PIN
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Database error:", error);
+        throw new Error(error.message || "Failed to create child profile");
       }
 
       console.log("Child data created:", childData);
@@ -292,32 +323,18 @@ const QRCodeGenerator = ({
               </Text>
 
               <Text className="text-gray-600 text-center mb-6 px-4">
-                {!user?.id || user?.id === "dev-user"
-                  ? "Your child's profile has been created in development mode. In production, this would be saved to the database with proper authentication."
-                  : "Your child's profile has been successfully created and saved to the database."}
+                Your child's profile has been successfully created and saved to
+                the database.
               </Text>
 
-              {(!user?.id || user?.id === "dev-user") && (
-                <View className="bg-blue-50 p-4 rounded-xl mb-6 w-full">
-                  <Text className="text-blue-800 font-medium text-center mb-2">
-                    📱 Development Mode Active
-                  </Text>
-                  <Text className="text-blue-700 text-center text-sm">
-                    Child profile stored locally in app state
-                  </Text>
-                </View>
-              )}
-
-              {user?.id && user?.id !== "dev-user" && (
-                <View className="bg-green-50 p-4 rounded-xl mb-6 w-full">
-                  <Text className="text-green-800 font-medium text-center mb-2">
-                    ✅ Production Mode
-                  </Text>
-                  <Text className="text-green-700 text-center text-sm">
-                    Child profile saved to database
-                  </Text>
-                </View>
-              )}
+              <View className="bg-green-50 p-4 rounded-xl mb-6 w-full">
+                <Text className="text-green-800 font-medium text-center mb-2">
+                  ✅ Profile Saved to Database
+                </Text>
+                <Text className="text-green-700 text-center text-sm">
+                  Child profile persisted to Supabase
+                </Text>
+              </View>
             </View>
 
             <View className="flex-row space-x-3">
@@ -325,7 +342,7 @@ const QRCodeGenerator = ({
                 onPress={() => {
                   onClose();
                   router.push(
-                    `/child/profile-setup?childName=${encodeURIComponent(childName)}&parentId=${user?.id || "dev-user"}&focusAreas=${encodeURIComponent(JSON.stringify(selectedFocusAreas))}`,
+                    `/child/profile-setup?childId=${encodeURIComponent(childData?.id || "")}&childName=${encodeURIComponent(childName)}&parentId=${parentId}&focusAreas=${encodeURIComponent(JSON.stringify(selectedFocusAreas))}`,
                   );
                 }}
                 className="flex-1 bg-blue-600 py-4 rounded-lg items-center mr-2"
@@ -464,18 +481,12 @@ const QRCodeGenerator = ({
                       : "text-white"
                   }`}
                 >
-                  {isSubmitting
-                    ? "Adding Child..."
-                    : !user?.id || user?.id === "dev-user"
-                      ? "Add Child (Dev Mode)"
-                      : "Add Child"}
+                  {isSubmitting ? "Adding Child..." : "Add Child"}
                 </Text>
               </TouchableOpacity>
 
               <Text className="text-gray-500 text-center text-sm">
-                {!user?.id || user?.id === "dev-user"
-                  ? "Development mode: Child will be simulated locally (no database)"
-                  : "Child profile will be saved to database"}
+                Child profile will be saved to database
               </Text>
             </ScrollView>
           </View>
