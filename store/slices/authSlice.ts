@@ -11,9 +11,13 @@ interface AuthState {
 }
 
 const initialState: AuthState = {
-  user: null,
-  session: null,
-  deviceType: "unlinked",
+  user: {
+    id: "dev-user",
+    email: "dev@example.com",
+    user_metadata: { first_name: "Dev", last_name: "User" },
+  },
+  session: { user: { id: "dev-user", email: "dev@example.com" } },
+  deviceType: "parent",
   isLoading: false,
   error: null,
 };

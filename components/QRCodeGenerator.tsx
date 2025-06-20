@@ -7,36 +7,57 @@ import {
   StyleSheet,
   TextInput,
   Alert,
+  ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
-import { Share, X, Copy, RefreshCw } from "lucide-react-native";
+import { Share, X, Copy, RefreshCw, CheckCircle } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useDispatch, useSelector } from "react-redux";
 import {
   generateConnectionToken,
   clearCurrentToken,
 } from "../store/slices/connectionSlice";
+import { setProfile } from "../store/slices/childSlice";
 import { RootState, AppDispatch } from "../store";
 import QRCode from "react-native-qrcode-svg";
+import { supabase } from "../lib/supabase";
+import { v4 as uuidv4 } from "uuid";
+import { useRouter } from "expo-router";
 
 interface QRCodeGeneratorProps {
   isVisible?: boolean;
   onClose?: () => void;
+  onChildCreated?: (childData: any) => void;
 }
 
 const QRCodeGenerator = ({
   isVisible = true,
   onClose = () => {},
+  onChildCreated = () => {},
 }: QRCodeGeneratorProps) => {
   const dispatch = useDispatch<AppDispatch>();
+  const router = useRouter();
   const { currentToken, isGenerating, error } = useSelector(
     (state: RootState) => state.connection,
   );
   const { user } = useSelector((state: RootState) => state.auth);
 
   const [childName, setChildName] = useState("");
+  const [childAge, setChildAge] = useState("");
+  const [selectedFocusAreas, setSelectedFocusAreas] = useState<string[]>([]);
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
-  const [showNameInput, setShowNameInput] = useState(true);
+  const [showChildInfoInput, setShowChildInfoInput] = useState(true);
+  const [step, setStep] = useState<"info" | "qr" | "success">("info");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const FOCUS_AREAS = [
+    { id: "health", name: "Health & Fitness", emoji: "💪" },
+    { id: "education", name: "Education", emoji: "📚" },
+    { id: "chores", name: "Household Chores", emoji: "🏠" },
+    { id: "creativity", name: "Arts & Creativity", emoji: "🎨" },
+    { id: "social", name: "Social Skills", emoji: "👥" },
+    { id: "fun", name: "Fun & Games", emoji: "🎮" },
+  ];
 
   useEffect(() => {
     // Set up timer for QR code expiration
@@ -65,8 +86,12 @@ const QRCodeGenerator = ({
 
   useEffect(() => {
     if (!isVisible) {
-      setShowNameInput(true);
+      setShowChildInfoInput(true);
+      setStep("info");
       setChildName("");
+      setChildAge("");
+      setSelectedFocusAreas([]);
+      setIsSubmitting(false);
       dispatch(clearCurrentToken());
     }
   }, [isVisible, dispatch]);
@@ -77,26 +102,124 @@ const QRCodeGenerator = ({
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
-  const handleGenerateQR = () => {
+  const handleFocusAreaToggle = (areaId: string) => {
+    setSelectedFocusAreas((prev) =>
+      prev.includes(areaId)
+        ? prev.filter((id) => id !== areaId)
+        : [...prev, areaId],
+    );
+  };
+
+  const handleGenerateQR = async () => {
+    console.log("Button clicked!", { childName, childAge, selectedFocusAreas });
+
     if (!childName.trim()) {
       Alert.alert("Error", "Please enter your child's name");
       return;
     }
 
-    if (!user?.id) {
-      Alert.alert("Error", "User not authenticated");
+    if (
+      !childAge.trim() ||
+      isNaN(Number(childAge)) ||
+      Number(childAge) < 2 ||
+      Number(childAge) > 18
+    ) {
+      Alert.alert("Error", "Please enter a valid age between 2 and 18");
       return;
     }
 
-    dispatch(
-      generateConnectionToken({
-        childName: childName.trim(),
-        parentId: user.id,
-      }),
-    ).then(() => {
-      setShowNameInput(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    });
+    if (selectedFocusAreas.length === 0) {
+      Alert.alert("Error", "Please select at least one focus area");
+      return;
+    }
+
+    console.log("All validations passed, creating child profile");
+
+    setIsSubmitting(true);
+
+    try {
+      let childData;
+
+      // Check if we're in development mode (no authenticated user)
+      const isDevelopmentMode = !user?.id || user?.id === "dev-user";
+
+      if (isDevelopmentMode) {
+        console.log("Development mode: simulating child creation");
+        // In development mode, simulate the child creation without database
+        childData = {
+          id: uuidv4(),
+          name: childName.trim(),
+          age: Number(childAge),
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${childName.trim()}`,
+          focus_areas: selectedFocusAreas,
+          parent_id: user?.id || "dev-user",
+          famcoin_balance: 0,
+          pin_hash: null, // Will be set during PIN creation
+          device_id: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        // Simulate database delay
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } else {
+        console.log("Production mode: creating child in database");
+        // Production mode: create child in database
+        const { data, error } = await supabase
+          .from("children")
+          .insert({
+            name: childName.trim(),
+            age: Number(childAge),
+            avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${childName.trim()}`,
+            focus_areas: selectedFocusAreas,
+            parent_id: user.id,
+            famcoin_balance: 0,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Database error:", error);
+          throw new Error(error.message || "Failed to create child profile");
+        }
+
+        childData = data;
+      }
+
+      console.log("Child data created:", childData);
+
+      // Store the child profile in Redux store
+      dispatch(setProfile(childData));
+      console.log("Child profile stored in Redux store");
+
+      // Notify parent component about child creation
+      onChildCreated(childData);
+
+      console.log("Moving to success step");
+      // Move to success step
+      setStep("success");
+      console.log("Step set to success:", "success");
+
+      // Trigger haptic feedback
+      try {
+        await Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        );
+      } catch (hapticError) {
+        console.log("Haptic feedback not available:", hapticError);
+      }
+    } catch (error) {
+      console.error("Unexpected error:", error);
+      // Use console.error instead of Alert for web compatibility
+      console.error(
+        "An unexpected error occurred while creating the child:",
+        error,
+      );
+      setStep("info"); // Reset to info step on error
+    } finally {
+      setIsSubmitting(false);
+      console.log("Submission completed, isSubmitting set to false");
+    }
   };
 
   const handleCopyCode = () => {
@@ -126,11 +249,21 @@ const QRCodeGenerator = ({
   };
 
   const handleBack = () => {
-    setShowNameInput(true);
-    dispatch(clearCurrentToken());
+    if (step === "qr") {
+      setStep("info");
+      dispatch(clearCurrentToken());
+    } else if (step === "success") {
+      setStep("info");
+    } else {
+      onClose();
+    }
   };
 
-  if (showNameInput || !currentToken) {
+  const handleFinish = () => {
+    onClose();
+  };
+
+  if (step === "success") {
     return (
       <Modal
         visible={isVisible}
@@ -139,45 +272,212 @@ const QRCodeGenerator = ({
         onRequestClose={onClose}
       >
         <View className="flex-1 justify-end bg-black/50">
-          <View className="bg-white rounded-t-3xl p-6 h-[400px]">
+          <View className="bg-white rounded-t-3xl p-6 h-[500px]">
             <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-2xl font-bold text-blue-600">
-                Connect Child Device
+              <Text className="text-2xl font-bold text-green-600">
+                Success!
               </Text>
               <TouchableOpacity onPress={onClose} className="p-2">
                 <X size={24} color="#64748b" />
               </TouchableOpacity>
             </View>
 
-            <Text className="text-lg font-medium mb-4">
-              Enter your child's name to generate a QR code
-            </Text>
+            <View className="items-center justify-center flex-1">
+              <View className="bg-green-100 p-6 rounded-full mb-6">
+                <CheckCircle size={64} color="#16a34a" />
+              </View>
 
-            <TextInput
-              className="border border-gray-300 rounded-lg p-4 text-lg mb-6"
-              placeholder="Child's name"
-              value={childName}
-              onChangeText={setChildName}
-              autoFocus
-            />
-
-            {error && (
-              <Text className="text-red-500 text-center mb-4">{error}</Text>
-            )}
-
-            <TouchableOpacity
-              onPress={handleGenerateQR}
-              className="bg-blue-600 py-4 rounded-lg items-center"
-              disabled={isGenerating || !childName.trim()}
-            >
-              <Text className="text-white font-bold text-lg">
-                {isGenerating ? "Generating..." : "Generate QR Code"}
+              <Text className="text-xl font-bold text-gray-800 mb-2 text-center">
+                {childName} Added Successfully!
               </Text>
-            </TouchableOpacity>
 
-            <Text className="text-gray-500 text-center mt-4 text-sm">
-              The QR code will be valid for 10 minutes
-            </Text>
+              <Text className="text-gray-600 text-center mb-6 px-4">
+                {!user?.id || user?.id === "dev-user"
+                  ? "Your child's profile has been created in development mode. In production, this would be saved to the database with proper authentication."
+                  : "Your child's profile has been successfully created and saved to the database."}
+              </Text>
+
+              {(!user?.id || user?.id === "dev-user") && (
+                <View className="bg-blue-50 p-4 rounded-xl mb-6 w-full">
+                  <Text className="text-blue-800 font-medium text-center mb-2">
+                    📱 Development Mode Active
+                  </Text>
+                  <Text className="text-blue-700 text-center text-sm">
+                    Child profile stored locally in app state
+                  </Text>
+                </View>
+              )}
+
+              {user?.id && user?.id !== "dev-user" && (
+                <View className="bg-green-50 p-4 rounded-xl mb-6 w-full">
+                  <Text className="text-green-800 font-medium text-center mb-2">
+                    ✅ Production Mode
+                  </Text>
+                  <Text className="text-green-700 text-center text-sm">
+                    Child profile saved to database
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View className="flex-row space-x-3">
+              <TouchableOpacity
+                onPress={() => {
+                  onClose();
+                  router.push(
+                    `/child/profile-setup?childName=${encodeURIComponent(childName)}&parentId=${user?.id || "dev-user"}&focusAreas=${encodeURIComponent(JSON.stringify(selectedFocusAreas))}`,
+                  );
+                }}
+                className="flex-1 bg-blue-600 py-4 rounded-lg items-center mr-2"
+              >
+                <Text className="text-white font-bold text-lg">
+                  Setup Profile
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleFinish}
+                className="flex-1 bg-green-600 py-4 rounded-lg items-center ml-2"
+              >
+                <Text className="text-white font-bold text-lg">Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  if (step === "info" || !currentToken) {
+    return (
+      <Modal
+        visible={isVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={onClose}
+      >
+        <View className="flex-1 justify-end bg-black/50">
+          <View className="bg-white rounded-t-3xl p-6 max-h-[90%]">
+            <View className="flex-row justify-between items-center mb-6">
+              <Text className="text-2xl font-bold text-blue-600">
+                Add Child Info
+              </Text>
+              <TouchableOpacity onPress={onClose} className="p-2">
+                <X size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text className="text-lg font-medium mb-4">
+                Tell us about your child to get started
+              </Text>
+
+              {/* Child Name */}
+              <View className="mb-4">
+                <Text className="text-gray-700 font-medium mb-2">
+                  Child's Name
+                </Text>
+                <TextInput
+                  className="border border-gray-300 rounded-lg p-4 text-lg"
+                  placeholder="Enter child's name"
+                  value={childName}
+                  onChangeText={setChildName}
+                  autoCapitalize="words"
+                />
+              </View>
+
+              {/* Child Age */}
+              <View className="mb-4">
+                <Text className="text-gray-700 font-medium mb-2">Age</Text>
+                <TextInput
+                  className="border border-gray-300 rounded-lg p-4 text-lg"
+                  placeholder="Enter age (2-18)"
+                  value={childAge}
+                  onChangeText={setChildAge}
+                  keyboardType="numeric"
+                  maxLength={2}
+                />
+              </View>
+
+              {/* Focus Areas */}
+              <View className="mb-6">
+                <Text className="text-gray-700 font-medium mb-3">
+                  Initial Focus Areas (Select all that apply)
+                </Text>
+                <View className="space-y-2">
+                  {FOCUS_AREAS.map((area) => {
+                    const isSelected = selectedFocusAreas.includes(area.id);
+                    return (
+                      <TouchableOpacity
+                        key={area.id}
+                        onPress={() => handleFocusAreaToggle(area.id)}
+                        className={`flex-row items-center p-3 rounded-lg border ${
+                          isSelected
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-gray-200 bg-white"
+                        }`}
+                      >
+                        <Text className="text-2xl mr-3">{area.emoji}</Text>
+                        <Text
+                          className={`font-medium ${
+                            isSelected ? "text-blue-700" : "text-gray-700"
+                          }`}
+                        >
+                          {area.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {error && (
+                <Text className="text-red-500 text-center mb-4">{error}</Text>
+              )}
+
+              <TouchableOpacity
+                onPress={() => {
+                  console.log("TouchableOpacity pressed");
+                  handleGenerateQR();
+                }}
+                className={`py-4 rounded-lg items-center mb-4 ${
+                  !childName.trim() ||
+                  !childAge.trim() ||
+                  selectedFocusAreas.length === 0 ||
+                  isSubmitting
+                    ? "bg-gray-400"
+                    : "bg-blue-600"
+                }`}
+                disabled={
+                  !childName.trim() ||
+                  !childAge.trim() ||
+                  selectedFocusAreas.length === 0 ||
+                  isSubmitting
+                }
+              >
+                <Text
+                  className={`font-bold text-lg ${
+                    !childName.trim() ||
+                    !childAge.trim() ||
+                    selectedFocusAreas.length === 0 ||
+                    isSubmitting
+                      ? "text-gray-600"
+                      : "text-white"
+                  }`}
+                >
+                  {isSubmitting
+                    ? "Adding Child..."
+                    : !user?.id || user?.id === "dev-user"
+                      ? "Add Child (Dev Mode)"
+                      : "Add Child"}
+                </Text>
+              </TouchableOpacity>
+
+              <Text className="text-gray-500 text-center text-sm">
+                {!user?.id || user?.id === "dev-user"
+                  ? "Development mode: Child will be simulated locally (no database)"
+                  : "Child profile will be saved to database"}
+              </Text>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -267,10 +567,14 @@ const QRCodeGenerator = ({
             </Text>
           </View>
 
-          <Text className="text-gray-600 text-center mb-4">
-            Have your child scan this QR code using the Famify app to connect
-            their device to your account.
-          </Text>
+          <View className="bg-blue-50 p-4 rounded-xl mb-4">
+            <Text className="text-blue-800 font-bold text-center mb-2">
+              📱 Now hand your phone to your child
+            </Text>
+            <Text className="text-blue-700 text-center text-sm">
+              They'll scan this QR code to complete their setup
+            </Text>
+          </View>
 
           <TouchableOpacity
             onPress={handleRefresh}

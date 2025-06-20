@@ -23,8 +23,15 @@ const KEYPAD_NUMBERS = [
 export default function PinLoginScreen() {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
-  const { profile, isLoading, error, pinAttempts, isLocked, lockUntil } =
-    useSelector((state: RootState) => state.child);
+  const {
+    profile,
+    isLoading,
+    error,
+    pinAttempts,
+    isLocked,
+    lockUntil,
+    isAuthenticated,
+  } = useSelector((state: RootState) => state.child);
 
   const [pin, setPin] = useState("");
   const [lockTimeRemaining, setLockTimeRemaining] = useState(0);

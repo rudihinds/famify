@@ -10,52 +10,9 @@ import { Platform } from "react-native";
 import { Provider } from "react-redux";
 import { PersistGate } from "redux-persist/integration/react";
 import { store, persistor } from "../store";
-import { supabase } from "../lib/supabase";
-import { useDispatch } from "react-redux";
-import { setSession } from "../store/slices/authSlice";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
-
-function AuthProvider({ children }: { children: React.ReactNode }) {
-  const dispatch = useDispatch();
-
-  useEffect(() => {
-    let mounted = true;
-    let subscription: any;
-
-    const initAuth = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (mounted) {
-          dispatch(setSession(session));
-        }
-      } catch (error) {
-        console.warn("Auth init failed:", error);
-      }
-
-      if (mounted) {
-        const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-          if (mounted) {
-            dispatch(setSession(session));
-          }
-        });
-        subscription = data.subscription;
-      }
-    };
-
-    initAuth();
-
-    return () => {
-      mounted = false;
-      subscription?.unsubscribe();
-    };
-  }, [dispatch]);
-
-  return <>{children}</>;
-}
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -82,58 +39,56 @@ export default function RootLayout() {
   return (
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
-        <AuthProvider>
-          <ThemeProvider value={DefaultTheme}>
-            <Stack
-              screenOptions={({ route }) => ({
-                headerShown: !route.name.startsWith("tempobook"),
-              })}
-            >
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="auth/welcome"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="auth/parent-login"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="auth/parent-register"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="parent/dashboard"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="child/scanner"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="child/profile-setup"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="child/pin-creation"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="child/pin-login"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="auth/callback"
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="auth/confirm"
-                options={{ headerShown: false }}
-              />
-            </Stack>
-            <StatusBar style="auto" />
-          </ThemeProvider>
-        </AuthProvider>
+        <ThemeProvider value={DefaultTheme}>
+          <Stack
+            screenOptions={({ route }) => ({
+              headerShown: !route.name.startsWith("tempobook"),
+            })}
+          >
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="auth/welcome"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="auth/parent-login"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="auth/parent-register"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="parent/dashboard"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="child/scanner"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="child/profile-setup"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="child/pin-creation"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="child/pin-login"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="auth/callback"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="auth/confirm"
+              options={{ headerShown: false }}
+            />
+          </Stack>
+          <StatusBar style="auto" />
+        </ThemeProvider>
       </PersistGate>
     </Provider>
   );

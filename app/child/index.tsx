@@ -131,11 +131,11 @@ export default function ChildDashboard() {
       </View>
 
       <TouchableOpacity
-        className="mt-8 p-4"
-        onPress={() => setShowScanner(true)}
+        className="mt-8 bg-indigo-600 py-4 px-8 rounded-xl"
+        onPress={() => router.push("/child/scanner")}
       >
-        <Text className="text-indigo-600 font-medium text-center">
-          Connect to parent account
+        <Text className="text-white font-bold text-center text-lg">
+          Connect to Parent
         </Text>
       </TouchableOpacity>
     </View>

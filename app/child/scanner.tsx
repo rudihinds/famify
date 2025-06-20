@@ -10,7 +10,7 @@ import {
   clearError,
 } from "../../store/slices/connectionSlice";
 import { BarCodeScanner } from "expo-barcode-scanner";
-import { ArrowLeft, Camera } from "lucide-react-native";
+import { ArrowLeft, Camera, Heart } from "lucide-react-native";
 
 export default function QRScannerScreen() {
   const router = useRouter();
@@ -21,6 +21,8 @@ export default function QRScannerScreen() {
 
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [connectionData, setConnectionData] = useState<any>(null);
 
   useEffect(() => {
     const getBarCodeScannerPermissions = async () => {
@@ -35,37 +37,41 @@ export default function QRScannerScreen() {
     if (scanned) return;
     setScanned(true);
 
-    try {
-      const tokenData = await dispatch(
-        validateConnectionToken({ token: data }),
-      ).unwrap();
+    // Temporarily disabled - simulate successful connection
+    const mockConnectionData = {
+      token: "mock-token",
+      child_name: "Test Child",
+      parent_id: "dev-user",
+      parent_name: "Parent",
+    };
 
-      // Navigate to profile setup with token data
+    setConnectionData(mockConnectionData);
+    setShowWelcome(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleContinueToSetup = () => {
+    if (connectionData) {
       router.push({
         pathname: "/child/profile-setup",
         params: {
-          token: data,
-          childName: tokenData.child_name,
-          parentId: tokenData.parent_id,
+          token: connectionData.token,
+          childName: connectionData.child_name,
+          parentId: connectionData.parent_id,
         },
       });
-    } catch (error: any) {
-      Alert.alert(
-        "Invalid QR Code",
-        error.message || "This QR code is invalid or has expired",
-        [
-          {
-            text: "Try Again",
-            onPress: () => setScanned(false),
-          },
-        ],
-      );
     }
   };
 
   const handleBack = () => {
-    dispatch(clearError());
-    router.back();
+    if (showWelcome) {
+      setShowWelcome(false);
+      setScanned(false);
+      setConnectionData(null);
+    } else {
+      dispatch(clearError());
+      router.back();
+    }
   };
 
   if (hasPermission === null) {
@@ -112,6 +118,54 @@ export default function QRScannerScreen() {
     );
   }
 
+  if (showWelcome && connectionData) {
+    return (
+      <SafeAreaView className="flex-1 bg-purple-50">
+        <StatusBar style="dark" />
+        <View className="flex-1 px-6 pt-4">
+          <TouchableOpacity onPress={handleBack} className="mb-6">
+            <ArrowLeft size={24} color="#7c3aed" />
+          </TouchableOpacity>
+
+          <View className="flex-1 justify-center">
+            <View className="bg-white rounded-3xl p-8 shadow-lg">
+              <View className="items-center mb-8">
+                <View className="bg-green-100 p-6 rounded-full mb-4">
+                  <Heart size={48} color="#10b981" fill="#10b981" />
+                </View>
+                <Text className="text-3xl font-bold text-center mb-4 text-purple-800">
+                  Welcome {connectionData.child_name}!
+                </Text>
+                <Text className="text-xl text-center mb-2 text-gray-700">
+                  Successfully connected to
+                </Text>
+                <Text className="text-2xl font-bold text-center text-green-600">
+                  {connectionData.parent_name || "Your Parent"}'s Account
+                </Text>
+              </View>
+
+              <View className="bg-green-50 p-4 rounded-xl mb-6">
+                <Text className="text-green-800 text-center font-medium">
+                  🎉 Connection successful! Let's finish setting up your
+                  profile.
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={handleContinueToSetup}
+                className="bg-purple-600 py-4 px-6 rounded-xl"
+              >
+                <Text className="text-white font-bold text-lg text-center">
+                  Continue Setup
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-black">
       <StatusBar style="light" />
@@ -138,7 +192,7 @@ export default function QRScannerScreen() {
           Point your camera at the QR code shown by your parent
         </Text>
 
-        {scanned && (
+        {scanned && !showWelcome && (
           <TouchableOpacity
             onPress={() => setScanned(false)}
             className="bg-purple-600 py-3 px-6 rounded-xl"

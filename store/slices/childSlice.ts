@@ -7,10 +7,13 @@ interface ChildProfile {
   id: string;
   name: string;
   age: number;
-  avatar: string;
-  focusAreas: string[];
-  parentId: string;
-  deviceId: string;
+  avatar_url: string;
+  focus_areas: string[];
+  parent_id: string;
+  pin_hash?: string;
+  famcoin_balance: number;
+  created_at: string;
+  updated_at: string;
 }
 
 interface ChildState {
@@ -80,24 +83,22 @@ export const createChildProfile = createAsyncThunk(
     avatar,
     focusAreas,
     parentId,
-    deviceId,
   }: {
     name: string;
     age: number;
     avatar: string;
     focusAreas: string[];
     parentId: string;
-    deviceId: string;
   }) => {
     const { data, error } = await supabase
       .from("children")
       .insert({
         name,
         age,
-        avatar,
+        avatar_url: avatar,
         focus_areas: focusAreas,
         parent_id: parentId,
-        device_id: deviceId,
+        famcoin_balance: 0,
       })
       .select()
       .single();

@@ -14,7 +14,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState, AppDispatch } from "../../store";
-import { createChildProfile } from "../../store/slices/childSlice";
+import { createChildProfile, setProfile } from "../../store/slices/childSlice";
 import {
   ArrowLeft,
   User,
@@ -93,7 +93,22 @@ export default function ChildProfileSetupScreen() {
   const [name, setName] = useState((params.childName as string) || "");
   const [age, setAge] = useState("");
   const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
-  const [selectedFocusAreas, setSelectedFocusAreas] = useState<string[]>([]);
+  const [selectedFocusAreas, setSelectedFocusAreas] = useState<string[]>(() => {
+    try {
+      return params.focusAreas ? JSON.parse(params.focusAreas as string) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [showFocusAreaSelection, setShowFocusAreaSelection] = useState(() => {
+    try {
+      return params.focusAreas
+        ? JSON.parse(params.focusAreas as string).length === 0
+        : true;
+    } catch {
+      return true;
+    }
+  });
 
   const handleFocusAreaToggle = (areaId: string) => {
     setSelectedFocusAreas((prev) =>
@@ -125,19 +140,18 @@ export default function ChildProfileSetupScreen() {
     }
 
     try {
-      const deviceId =
-        Device.default.sessionId || Device.default.installationId || "unknown";
-
-      await dispatch(
+      const result = await dispatch(
         createChildProfile({
           name: name.trim(),
           age: Number(age),
           avatar: selectedAvatar,
           focusAreas: selectedFocusAreas,
           parentId: params.parentId as string,
-          deviceId,
         }),
       ).unwrap();
+
+      // Store the created profile
+      dispatch(setProfile(result));
 
       router.push("/child/pin-creation");
     } catch (error: any) {
@@ -164,27 +178,23 @@ export default function ChildProfileSetupScreen() {
 
             <View className="bg-white rounded-3xl p-8 shadow-lg">
               <Text className="text-3xl font-bold text-center mb-2 text-purple-800">
-                Let's Set Up Your Profile!
+                Make It Yours!
               </Text>
               <Text className="text-center mb-8 text-gray-600">
-                Tell us a bit about yourself
+                Choose your avatar and what YOU want to focus on
               </Text>
 
-              {/* Name Input */}
+              {/* Name Display (read-only) */}
               <View className="mb-6">
                 <Text className="text-gray-700 font-medium mb-2">
-                  What's your name?
+                  Your Name
                 </Text>
-                <TextInput
-                  className="border border-gray-300 rounded-xl p-4 text-lg"
-                  placeholder="Enter your name"
-                  value={name}
-                  onChangeText={setName}
-                  autoCapitalize="words"
-                />
+                <View className="border border-gray-300 rounded-xl p-4 bg-gray-50">
+                  <Text className="text-lg text-gray-700">{name}</Text>
+                </View>
               </View>
 
-              {/* Age Input */}
+              {/* Age Input (still editable) */}
               <View className="mb-6">
                 <Text className="text-gray-700 font-medium mb-2">
                   How old are you?
@@ -221,40 +231,93 @@ export default function ChildProfileSetupScreen() {
                 </View>
               </View>
 
-              {/* Focus Areas */}
+              {/* Focus Areas Selection */}
               <View className="mb-8">
-                <Text className="text-gray-700 font-medium mb-3">
-                  What would you like to focus on? (Select all that apply)
-                </Text>
-                <View className="space-y-3">
-                  {FOCUS_AREAS.map((area) => {
-                    const IconComponent = area.icon;
-                    const isSelected = selectedFocusAreas.includes(area.id);
+                {!showFocusAreaSelection && selectedFocusAreas.length > 0 ? (
+                  <>
+                    <Text className="text-gray-700 font-medium mb-3">
+                      Your selected focus areas:
+                    </Text>
+                    <View className="space-y-3">
+                      {FOCUS_AREAS.filter((area) =>
+                        selectedFocusAreas.includes(area.id),
+                      ).map((area) => {
+                        const IconComponent = area.icon;
 
-                    return (
+                        return (
+                          <View
+                            key={area.id}
+                            className="flex-row items-center p-4 rounded-xl border-2 border-purple-500 bg-purple-50"
+                          >
+                            <View
+                              className={`p-2 rounded-lg mr-3 ${area.color}`}
+                            >
+                              <IconComponent size={20} />
+                            </View>
+                            <Text className="font-medium text-purple-700">
+                              {area.name}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setShowFocusAreaSelection(true)}
+                      className="mt-3 p-2"
+                    >
+                      <Text className="text-purple-600 text-center font-medium">
+                        Want to change these? Tap here to reselect
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <Text className="text-gray-700 font-medium mb-3">
+                      What do YOU want to work on? (Select all that apply)
+                    </Text>
+                    <View className="space-y-3">
+                      {FOCUS_AREAS.map((area) => {
+                        const IconComponent = area.icon;
+                        const isSelected = selectedFocusAreas.includes(area.id);
+
+                        return (
+                          <TouchableOpacity
+                            key={area.id}
+                            onPress={() => handleFocusAreaToggle(area.id)}
+                            className={`flex-row items-center p-4 rounded-xl border-2 ${
+                              isSelected
+                                ? "border-purple-500 bg-purple-50"
+                                : "border-gray-200 bg-white"
+                            }`}
+                          >
+                            <View
+                              className={`p-2 rounded-lg mr-3 ${area.color}`}
+                            >
+                              <IconComponent size={20} />
+                            </View>
+                            <Text
+                              className={`font-medium ${
+                                isSelected ? "text-purple-700" : "text-gray-700"
+                              }`}
+                            >
+                              {area.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                    {selectedFocusAreas.length > 0 && (
                       <TouchableOpacity
-                        key={area.id}
-                        onPress={() => handleFocusAreaToggle(area.id)}
-                        className={`flex-row items-center p-4 rounded-xl border-2 ${
-                          isSelected
-                            ? "border-purple-500 bg-purple-50"
-                            : "border-gray-200 bg-white"
-                        }`}
+                        onPress={() => setShowFocusAreaSelection(false)}
+                        className="mt-3 p-2"
                       >
-                        <View className={`p-2 rounded-lg mr-3 ${area.color}`}>
-                          <IconComponent size={20} />
-                        </View>
-                        <Text
-                          className={`font-medium ${
-                            isSelected ? "text-purple-700" : "text-gray-700"
-                          }`}
-                        >
-                          {area.name}
+                        <Text className="text-purple-600 text-center font-medium">
+                          Done selecting? Tap here to confirm
                         </Text>
                       </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                    )}
+                  </>
+                )}
               </View>
 
               {error && (
