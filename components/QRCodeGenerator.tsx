@@ -49,6 +49,7 @@ const QRCodeGenerator = ({
   const [showChildInfoInput, setShowChildInfoInput] = useState(true);
   const [step, setStep] = useState<"info" | "qr" | "success">("info");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [childData, setChildData] = useState<any>(null);
 
   const FOCUS_AREAS = [
     { id: "health", name: "Health & Fitness", emoji: "💪" },
@@ -217,14 +218,17 @@ const QRCodeGenerator = ({
         throw new Error(error.message || "Failed to create child profile");
       }
 
-      console.log("Child data created:", childData);
+      console.log("Child data created:", data);
+
+      // Store the created child data
+      setChildData(data);
 
       // Store the child profile in Redux store
-      dispatch(setProfile(childData));
+      dispatch(setProfile(data));
       console.log("Child profile stored in Redux store");
 
       // Notify parent component about child creation
-      onChildCreated(childData);
+      onChildCreated(data);
 
       console.log("Moving to success step");
       // Move to success step
@@ -341,8 +345,9 @@ const QRCodeGenerator = ({
               <TouchableOpacity
                 onPress={() => {
                   onClose();
+                  const parentIdToUse = user?.id || devParentId;
                   router.push(
-                    `/child/profile-setup?childId=${encodeURIComponent(childData?.id || "")}&childName=${encodeURIComponent(childName)}&parentId=${parentId}&focusAreas=${encodeURIComponent(JSON.stringify(selectedFocusAreas))}`,
+                    `/child/profile-setup?childId=${encodeURIComponent(childData?.id || "")}&childName=${encodeURIComponent(childName)}&parentId=${parentIdToUse}&focusAreas=${encodeURIComponent(JSON.stringify(selectedFocusAreas))}`,
                   );
                 }}
                 className="flex-1 bg-blue-600 py-4 rounded-lg items-center mr-2"

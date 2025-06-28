@@ -1,10 +1,11 @@
 import React from "react";
-import { TouchableOpacity, Text, Alert } from "react-native";
+import { TouchableOpacity, Text } from "react-native";
 import { useDispatch } from "react-redux";
 import { useRouter } from "expo-router";
 import { AppDispatch } from "../store";
 import { signOut } from "../store/slices/authSlice";
 import { LogOut } from "lucide-react-native";
+import { Alert } from "../lib/alert";
 
 interface LogoutButtonProps {
   variant?: "text" | "icon" | "button";

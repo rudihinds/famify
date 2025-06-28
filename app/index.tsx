@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -6,20 +6,17 @@ import { useDispatch } from "react-redux";
 import { AppDispatch } from "../store";
 import { setDeviceType } from "../store/slices/authSlice";
 import { StatusBar } from "expo-status-bar";
+import { isDevMode } from "../config/development";
+import DevModeMenu from "../components/DevModeMenu";
 
 export default function HomeScreen() {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
-
-  useEffect(() => {
-    // Auto-navigate to parent dashboard for development
-    dispatch(setDeviceType("parent"));
-    router.replace("/parent/dashboard");
-  }, [dispatch, router]);
+  const devModeEnabled = isDevMode();
 
   const handleParentSelection = () => {
     dispatch(setDeviceType("parent"));
-    router.push("/parent/dashboard");
+    router.push("/auth/parent-login");
   };
 
   const handleChildSelection = () => {
@@ -31,6 +28,8 @@ export default function HomeScreen() {
   return (
     <SafeAreaView className="flex-1 bg-indigo-50">
       <StatusBar style="dark" />
+      
+      
       <View className="flex-1 justify-center items-center px-6">
         <View className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-lg">
           <Text className="text-3xl font-bold text-center mb-2 text-indigo-800">
@@ -59,6 +58,9 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       </View>
+      
+      {/* Dev Mode Menu */}
+      {devModeEnabled && <DevModeMenu />}
     </SafeAreaView>
   );
 }

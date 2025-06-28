@@ -16,6 +16,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { RootState, AppDispatch } from "../../store";
 import { signInParent, clearError } from "../../store/slices/authSlice";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react-native";
+import { supabase } from "../../lib/supabase";
 
 export default function ParentLoginScreen() {
   const router = useRouter();
@@ -25,6 +26,12 @@ export default function ParentLoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [createUserError, setCreateUserError] = useState("");
+
+  // Dev mode quick login
+  const isDevMode = process.env.EXPO_PUBLIC_DEV_MODE === 'true';
+  const testEmail = process.env.EXPO_PUBLIC_TEST_EMAIL;
+  const testPassword = process.env.EXPO_PUBLIC_TEST_PASSWORD;
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -116,6 +123,103 @@ export default function ParentLoginScreen() {
                   {isLoading ? "Signing In..." : "Sign In"}
                 </Text>
               </TouchableOpacity>
+
+              {/* Dev mode buttons */}
+              {isDevMode && testEmail && testPassword && (
+                <>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEmail(testEmail);
+                      setPassword(testPassword);
+                      handleLogin();
+                    }}
+                    className="bg-yellow-500 py-3 px-6 rounded-xl mb-4"
+                    disabled={isLoading}
+                  >
+                    <Text className="text-black font-bold text-center">
+                      🔧 Dev: Quick Login
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    onPress={async () => {
+                      setCreateUserError('');
+                      try {
+                        // First check if user exists
+                        const { data: signInData } = await supabase.auth.signInWithPassword({
+                          email: testEmail,
+                          password: testPassword,
+                        });
+                        
+                        if (signInData.user) {
+                          setCreateUserError('Test user already exists! Use Quick Login.');
+                          return;
+                        }
+                        
+                        // Create the test user
+                        const { data, error: signUpError } = await supabase.auth.signUp({
+                          email: testEmail,
+                          password: testPassword,
+                          options: {
+                            data: {
+                              email_confirmed: true
+                            }
+                          }
+                        });
+                        
+                        if (signUpError) throw signUpError;
+                        
+                        if (data.user) {
+                          // Create test children for the test user
+                          const { error: childError1 } = await supabase
+                            .from('children')
+                            .insert({
+                              parent_id: data.user.id,
+                              name: 'Emma',
+                              age: 8,
+                              pin_hash: '1234', // In production, this should be hashed
+                              famcoin_balance: 100,
+                            });
+                            
+                          const { error: childError2 } = await supabase
+                            .from('children')
+                            .insert({
+                              parent_id: data.user.id,
+                              name: 'Liam',
+                              age: 10,
+                              pin_hash: '5678', // In production, this should be hashed
+                              famcoin_balance: 150,
+                            });
+                          
+                          if (childError1 || childError2) {
+                            console.error('Error creating test children:', childError1 || childError2);
+                          }
+                          
+                          setCreateUserError('Test user created successfully! You can now use Quick Login.');
+                          
+                          // Sign out so they can use Quick Login
+                          await supabase.auth.signOut();
+                        }
+                      } catch (err: any) {
+                        console.error('Error creating test user:', err);
+                        setCreateUserError(err.message || 'Failed to create test user');
+                      }
+                    }}
+                    className="bg-orange-500 py-3 px-6 rounded-xl mb-4"
+                    disabled={isLoading}
+                  >
+                    <Text className="text-black font-bold text-center">
+                      🚀 Dev: Create Test User
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  {createUserError && (
+                    <Text className="text-sm text-center mb-4 text-gray-700">
+                      {createUserError}
+                    </Text>
+                  )}
+                </>
+              )}
 
               <TouchableOpacity
                 onPress={() => router.push("/auth/parent-register")}

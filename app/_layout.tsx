@@ -63,6 +63,10 @@ export default function RootLayout() {
               options={{ headerShown: false }}
             />
             <Stack.Screen
+              name="(parent)"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
               name="child/scanner"
               options={{ headerShown: false }}
             />
@@ -85,6 +89,14 @@ export default function RootLayout() {
             <Stack.Screen
               name="auth/confirm"
               options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="sequence-creation"
+              options={{
+                presentation: 'modal',
+                headerShown: false,
+                animation: 'slide_from_bottom',
+              }}
             />
           </Stack>
           <StatusBar style="auto" />

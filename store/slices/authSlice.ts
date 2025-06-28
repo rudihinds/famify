@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import { supabase } from "../../lib/supabase";
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 interface AuthState {
   user: any | null;
@@ -8,20 +9,14 @@ interface AuthState {
   deviceType: "parent" | "child" | "unlinked";
   isLoading: boolean;
   error: string | null;
-  devParentId: string | null;
 }
 
 const initialState: AuthState = {
-  user: {
-    id: "dev-user",
-    email: "dev@example.com",
-    user_metadata: { first_name: "Dev", last_name: "User" },
-  },
-  session: { user: { id: "dev-user", email: "dev@example.com" } },
-  deviceType: "parent",
+  user: null,
+  session: null,
+  deviceType: "unlinked",
   isLoading: false,
   error: null,
-  devParentId: "293847a7-b140-4acc-8729-fa5a7acb8def",
 };
 
 // Get dynamic redirect URL
@@ -349,9 +344,15 @@ export const signOut = createAsyncThunk("auth/signOut", async () => {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
 
-  // Clear secure storage
-  await SecureStore.deleteItemAsync("childPin");
-  await SecureStore.deleteItemAsync("childProfile");
+  // Clear secure storage - only on mobile platforms
+  if (Platform.OS !== 'web') {
+    try {
+      await SecureStore.deleteItemAsync("childPin");
+      await SecureStore.deleteItemAsync("childProfile");
+    } catch (error) {
+      console.warn("Failed to clear secure storage:", error);
+    }
+  }
 
   return null;
 });
@@ -361,114 +362,111 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     setDeviceType: (
-      state,
+      state: AuthState,
       action: PayloadAction<"parent" | "child" | "unlinked">,
     ) => {
       state.deviceType = action.payload;
     },
-    clearError: (state) => {
+    clearError: (state: AuthState) => {
       state.error = null;
     },
-    setSession: (state, action) => {
+    setSession: (state: AuthState, action: PayloadAction<any>) => {
       state.session = action.payload;
       state.user = action.payload?.user || null;
-    },
-    setDevParentId: (state, action: PayloadAction<string>) => {
-      state.devParentId = action.payload;
     },
   },
   extraReducers: (builder) => {
     builder
       // Sign up parent
-      .addCase(signUpParent.pending, (state) => {
+      .addCase(signUpParent.pending, (state: AuthState) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(signUpParent.fulfilled, (state, action) => {
+      .addCase(signUpParent.fulfilled, (state: AuthState, action) => {
         state.isLoading = false;
         state.user = action.payload.user;
         state.session = action.payload.session;
         state.deviceType = "parent";
       })
-      .addCase(signUpParent.rejected, (state, action) => {
+      .addCase(signUpParent.rejected, (state: AuthState, action) => {
         state.isLoading = false;
         state.error = action.error.message || "Sign up failed";
       })
       // Handle email confirmation
-      .addCase(handleEmailConfirmation.pending, (state) => {
+      .addCase(handleEmailConfirmation.pending, (state: AuthState) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(handleEmailConfirmation.fulfilled, (state, action) => {
+      .addCase(handleEmailConfirmation.fulfilled, (state: AuthState, action) => {
         state.isLoading = false;
         state.user = action.payload.user;
         state.session = action.payload.session;
         state.deviceType = "parent";
       })
-      .addCase(handleEmailConfirmation.rejected, (state, action) => {
+      .addCase(handleEmailConfirmation.rejected, (state: AuthState, action) => {
         state.isLoading = false;
         state.error = action.error.message || "Email confirmation failed";
       })
       // Sign in parent
-      .addCase(signInParent.pending, (state) => {
+      .addCase(signInParent.pending, (state: AuthState) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(signInParent.fulfilled, (state, action) => {
+      .addCase(signInParent.fulfilled, (state: AuthState, action) => {
         state.isLoading = false;
         state.user = action.payload.user;
         state.session = action.payload.session;
         state.deviceType = "parent";
       })
-      .addCase(signInParent.rejected, (state, action) => {
+      .addCase(signInParent.rejected, (state: AuthState, action) => {
         state.isLoading = false;
         state.error = action.error.message || "Sign in failed";
       })
       // Google OAuth
-      .addCase(signInWithGoogle.pending, (state) => {
+      .addCase(signInWithGoogle.pending, (state: AuthState) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(signInWithGoogle.fulfilled, (state, action) => {
+      .addCase(signInWithGoogle.fulfilled, (state: AuthState, action) => {
         state.isLoading = false;
         state.user = action.payload.user;
         state.session = action.payload.session;
         state.deviceType = "parent";
       })
-      .addCase(signInWithGoogle.rejected, (state, action) => {
+      .addCase(signInWithGoogle.rejected, (state: AuthState, action) => {
         state.isLoading = false;
         state.error = action.error.message || "Google sign-in failed";
       })
       // Facebook OAuth
-      .addCase(signInWithFacebook.pending, (state) => {
+      .addCase(signInWithFacebook.pending, (state: AuthState) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(signInWithFacebook.fulfilled, (state, action) => {
+      .addCase(signInWithFacebook.fulfilled, (state: AuthState) => {
         state.isLoading = false;
         // OAuth flow initiated, actual session will be set via callback
       })
-      .addCase(signInWithFacebook.rejected, (state, action) => {
+      .addCase(signInWithFacebook.rejected, (state: AuthState, action) => {
         state.isLoading = false;
         state.error = action.error.message || "Facebook sign-in failed";
       })
       // OAuth callback handling
-      .addCase(handleOAuthCallback.pending, (state) => {
+      .addCase(handleOAuthCallback.pending, (state: AuthState) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(handleOAuthCallback.fulfilled, (state, action) => {
+      .addCase(handleOAuthCallback.fulfilled, (state: AuthState, action) => {
         state.isLoading = false;
         state.user = action.payload.session?.user || null;
         state.session = action.payload.session;
         state.deviceType = "parent";
       })
-      .addCase(handleOAuthCallback.rejected, (state, action) => {
+      .addCase(handleOAuthCallback.rejected, (state: AuthState, action) => {
         state.isLoading = false;
         state.error = action.error.message || "OAuth callback failed";
       })
       // Sign out
-      .addCase(signOut.fulfilled, (state) => {
+      .addCase(signOut.fulfilled, (state: AuthState) => {
         state.user = null;
         state.session = null;
         state.deviceType = "unlinked";
@@ -477,6 +475,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setDeviceType, clearError, setSession, setDevParentId } =
-  authSlice.actions;
+export const { setDeviceType, clearError, setSession } = authSlice.actions;
 export default authSlice.reducer;

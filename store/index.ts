@@ -5,6 +5,7 @@ import { Platform } from "react-native";
 import authSlice from "./slices/authSlice";
 import childSlice from "./slices/childSlice";
 import connectionSlice from "./slices/connectionSlice";
+import sequenceCreationSlice from "./slices/sequenceCreationSlice";
 
 // Storage implementation with proper error handling
 let storage: any;
@@ -73,10 +74,20 @@ const persistConfig = {
   debug: false,
 };
 
+// Separate persist config for sequence creation
+const sequenceCreationPersistConfig = {
+  key: "sequenceCreation",
+  storage,
+  whitelist: ["selectedChildId", "sequenceSettings", "groups", "selectedTasksByGroup", "currentStep"],
+  // Don't persist loading/error states
+  blacklist: ["isLoading", "error", "validationErrors"],
+};
+
 const rootReducer = combineReducers({
   auth: authSlice,
   child: childSlice,
   connection: connectionSlice,
+  sequenceCreation: persistReducer(sequenceCreationPersistConfig, sequenceCreationSlice),
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

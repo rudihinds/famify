@@ -10,7 +10,9 @@ import {
   clearError,
 } from "../../store/slices/connectionSlice";
 import { BarCodeScanner } from "expo-barcode-scanner";
-import { ArrowLeft, Camera, Heart } from "lucide-react-native";
+import { ArrowLeft, Camera, Heart, Code } from "lucide-react-native";
+import { isDevMode, DEV_CONFIG } from "../../config/development";
+import * as Haptics from "expo-haptics";
 
 export default function QRScannerScreen() {
   const router = useRouter();
@@ -37,12 +39,33 @@ export default function QRScannerScreen() {
     if (scanned) return;
     setScanned(true);
 
-    // Temporarily disabled - simulate successful connection
+    try {
+      // Parse QR code data
+      const qrData = JSON.parse(data);
+      
+      // Validate the connection
+      const result = await dispatch(validateConnectionToken({
+        token: qrData.token,
+        childName: qrData.childName,
+      })).unwrap();
+      
+      setConnectionData(result);
+      setShowWelcome(true);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error("QR scan error:", error);
+      Alert.alert("Error", "Invalid QR code. Please try again.");
+      setScanned(false);
+    }
+  };
+
+  const handleMockConnection = () => {
+    const testChildren = getTestChildren();
     const mockConnectionData = {
-      token: "mock-token",
-      child_name: "Test Child",
-      parent_id: "dev-user",
-      parent_name: "Parent",
+      token: "mock-token-123",
+      child_name: testChildren[0].name,
+      parent_id: testChildren[0].parent_id,
+      parent_name: "Dev Parent",
     };
 
     setConnectionData(mockConnectionData);
@@ -195,9 +218,22 @@ export default function QRScannerScreen() {
         {scanned && !showWelcome && (
           <TouchableOpacity
             onPress={() => setScanned(false)}
-            className="bg-purple-600 py-3 px-6 rounded-xl"
+            className="bg-purple-600 py-3 px-6 rounded-xl mb-3"
           >
             <Text className="text-white font-bold text-center">Scan Again</Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Dev Mode Mock Connection */}
+        {isDevMode() && !scanned && (
+          <TouchableOpacity
+            onPress={handleMockConnection}
+            className="bg-indigo-600 py-3 px-6 rounded-xl flex-row items-center justify-center"
+          >
+            <Code size={20} color="white" className="mr-2" />
+            <Text className="text-white font-bold text-center">
+              Dev: Mock Connection
+            </Text>
           </TouchableOpacity>
         )}
       </View>
