@@ -38,7 +38,7 @@ const SequenceCreationHeader: React.FC<SequenceCreationHeaderProps> = ({ onCance
                 onCancel();
               } else {
                 // Navigate back to parent dashboard, exiting the modal
-                router.replace('/parent/dashboard');
+                navigate('/parent/dashboard', { replace: true });
               }
             },
           },

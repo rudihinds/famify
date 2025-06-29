@@ -16,15 +16,13 @@ interface ExpandableGroupSectionProps {
     activeDays: number[];
   };
   selectedTaskIds: string[];
-  onEdit: () => void;
 }
 
 const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const ExpandableGroupSection: React.FC<ExpandableGroupSectionProps> = ({ 
   group, 
-  selectedTaskIds,
-  onEdit 
+  selectedTaskIds
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [tasks, setTasks] = useState<TaskTemplate[]>([]);
@@ -105,9 +103,6 @@ const ExpandableGroupSection: React.FC<ExpandableGroupSectionProps> = ({
           </View>
           
           <View className="flex-row items-center">
-            <TouchableOpacity onPress={onEdit} className="mr-3">
-              <Text className="text-indigo-600 text-sm">Edit</Text>
-            </TouchableOpacity>
             <Animated.View style={animatedArrowStyle}>
               <ChevronDown size={20} color="#6b7280" />
             </Animated.View>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, Modal, TextInput } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../../store';
 import { 
@@ -16,10 +16,12 @@ import TaskSearchBar from '../../../components/sequence-creation/TaskSearchBar';
 import CategorySection from '../../../components/sequence-creation/CategorySection';
 import { taskService } from '../../../services/taskService';
 import { TaskCategory, TaskTemplate } from '../../../types/task';
+import { useRouter } from 'expo-router';
+import { errorHandler, withErrorHandling } from '../../../services/errorService';
 
 export default function AddTasksScreen() {
-  const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
+  const router = useRouter();
   const { groupId, groupIndex, totalGroups } = useLocalSearchParams<{
     groupId: string;
     groupIndex: string;
@@ -98,7 +100,7 @@ export default function AddTasksScreen() {
     return grouped;
   }, [categories, filteredTemplates]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (selectedTaskIds.length > 0) {
       if (isLastGroup) {
         // Go to review screen
@@ -112,27 +114,22 @@ export default function AddTasksScreen() {
         }
       }
     }
-  };
+  }, [selectedTaskIds, isLastGroup, currentGroupIndex, groups, totalGroupsCount, router]);
 
-  const handleBack = () => {
-    if (currentGroupIndex === 0) {
-      // Go back to groups setup
-      router.push('/sequence-creation/groups-setup');
-    } else {
-      // Go to previous group
-      router.back();
-    }
-  };
+  const handleBack = useCallback(() => {
+    // Always use router.back() to maintain proper navigation stack
+    router.back();
+  }, [router]);
 
-  const handleTaskToggle = (taskId: string) => {
+  const handleTaskToggle = useCallback((taskId: string) => {
     if (selectedTaskIds.includes(taskId)) {
       dispatch(removeTaskFromGroup({ groupId, taskId }));
     } else {
       dispatch(addTaskToGroup({ groupId, taskId }));
     }
-  };
+  }, [selectedTaskIds, dispatch, groupId]);
 
-  const handleCategoryToggle = (categoryId: string) => {
+  const handleCategoryToggle = useCallback((categoryId: string) => {
     setExpandedCategories(prev => {
       const newSet = new Set(prev);
       if (newSet.has(categoryId)) {
@@ -142,15 +139,15 @@ export default function AddTasksScreen() {
       }
       return newSet;
     });
-  };
+  }, []);
 
-  const handleCreateCustomTask = (categoryId: string) => {
+  const handleCreateCustomTask = useCallback((categoryId: string) => {
     setSelectedCategoryId(categoryId);
     setCustomTaskName('');
     setShowCustomTaskModal(true);
-  };
+  }, []);
 
-  const handleSaveCustomTask = async () => {
+  const handleSaveCustomTask = useCallback(async () => {
     if (!customTaskName.trim() || !selectedCategoryId || !parentId) return;
 
     try {
@@ -173,7 +170,7 @@ export default function AddTasksScreen() {
       console.error('Failed to create custom task:', error);
       Alert.alert('Error', 'Failed to create custom task. Please try again.');
     }
-  };
+  }, [customTaskName, selectedCategoryId, parentId, dispatch, groupId]);
 
   return (
     <View className="flex-1 bg-gray-100">

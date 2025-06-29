@@ -52,11 +52,13 @@ export default function TasksScreen() {
   };
   
   const handleCreateSequence = () => {
-    console.log('[TASKS] Create Sequence button clicked');
-    console.log('[TASKS] About to reset wizard');
-    dispatch(resetWizard()); // Clear any previous state
-    console.log('[TASKS] Wizard reset complete, navigating to select-child');
-    router.push('/sequence-creation/select-child');
+    // Always reset wizard state when starting a new sequence
+    // This ensures clean state and prevents stale data from previous sessions
+    dispatch(resetWizard());
+    // Small delay to ensure navigation context is ready
+    setTimeout(() => {
+      router.push('/sequence-creation/select-child');
+    }, 100);
   };
   
   const handleRefresh = () => {

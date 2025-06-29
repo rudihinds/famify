@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -7,10 +7,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
-  TouchableWithoutFeedback,
-  Modal
+  TouchableWithoutFeedback
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { 
@@ -19,25 +17,22 @@ import {
   selectSequenceSettings,
   selectIsStepValid
 } from '../../store/slices/sequenceCreationSlice';
-import { ChevronLeft, ChevronRight, Calendar, Info } from 'lucide-react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { ChevronLeft, ChevronRight, Info } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import PeriodSelector from '../../components/sequence-creation/PeriodSelector';
 import BudgetInput from '../../components/sequence-creation/BudgetInput';
+import DatePicker from '../../components/common/DatePicker';
+import { useRouter } from 'expo-router';
+import { errorHandler, withErrorHandling } from '../../services/errorService';
 
 export default function SequenceSettingsScreen() {
-  const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
+  const router = useRouter();
   const sequenceSettings = useSelector(selectSequenceSettings);
   // Use step 1 validation directly for this screen
   const canAdvance = useSelector((state: RootState) => selectIsStepValid(1)(state));
   const user = useSelector((state: RootState) => state.auth.user);
-  const isEditing = useSelector((state: RootState) => state.sequenceCreation.isEditing);
-  const editingSequenceId = useSelector((state: RootState) => state.sequenceCreation.editingSequenceId);
-  const selectedChildId = useSelector((state: RootState) => state.sequenceCreation.selectedChildId);
-  const currentStep = useSelector((state: RootState) => state.sequenceCreation.currentStep);
   
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [conversionRate, setConversionRate] = useState(10); // Default
   const [errors, setErrors] = useState<{
     period?: string;
@@ -46,32 +41,19 @@ export default function SequenceSettingsScreen() {
   }>({});
 
   useEffect(() => {
-    console.log('[SETTINGS] Component mounted');
-    console.log('[SETTINGS] Redux state on mount:', {
-      sequenceSettings,
-      isEditing,
-      editingSequenceId,
-      selectedChildId,
-      currentStep
-    });
-    
     // Set current step when screen mounts
-    console.log('[SETTINGS] Setting current step to 1');
     dispatch(setCurrentStep(1));
-    
-    // Debug: Check loaded data
-    console.log('[SETTINGS] Current settings after mount:', sequenceSettings);
   }, [dispatch]);
   
   useEffect(() => {
     fetchParentProfile();
   }, [user?.id]);
 
-  const fetchParentProfile = async () => {
+  const fetchParentProfile = useCallback(async () => {
     if (!user?.id) return;
     
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('famcoin_conversion_rate')
         .eq('id', user.id)
@@ -83,19 +65,9 @@ export default function SequenceSettingsScreen() {
     } catch (error) {
       console.error('Error fetching profile:', error);
     }
-  };
-
-  const handleNext = () => {
-    if (validateForm() && canAdvance) {
-      router.push('/sequence-creation/groups-setup');
-    }
-  };
-
-  const handleBack = () => {
-    router.back();
-  };
+  }, [user?.id]);
   
-  const validateForm = () => {
+  const validateForm = useCallback(() => {
     const newErrors: typeof errors = {};
     
     if (!sequenceSettings.period) {
@@ -112,18 +84,28 @@ export default function SequenceSettingsScreen() {
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+  }, [sequenceSettings]);
+
+  const handleNext = useCallback(() => {
+    if (validateForm() && canAdvance) {
+      router.push('/sequence-creation/groups-setup');
+    }
+  }, [canAdvance, router, validateForm]);
+
+  const handleBack = useCallback(() => {
+    router.back();
+  }, [router]);
   
-  const getPeriodDays = () => {
+  const getPeriodDays = useCallback(() => {
     switch (sequenceSettings.period) {
       case 'weekly': return 7;
       case 'fortnightly': return 14;
       case 'monthly': return 30;
       default: return 0;
     }
-  };
+  }, [sequenceSettings.period]);
   
-  const calculateEndDate = () => {
+  const calculateEndDate = useCallback(() => {
     if (!sequenceSettings.startDate || !sequenceSettings.period) return '';
     
     const start = new Date(sequenceSettings.startDate);
@@ -132,7 +114,7 @@ export default function SequenceSettingsScreen() {
     end.setDate(end.getDate() + days - 1);
     
     return end.toLocaleDateString();
-  };
+  }, [sequenceSettings.startDate, sequenceSettings.period, getPeriodDays]);
 
   const minDate = new Date(); // Today
   const maxDate = new Date();
@@ -171,114 +153,19 @@ export default function SequenceSettingsScreen() {
             </View>
 
             {/* Start Date */}
-            <View className="mb-6">
-              <Text className="mb-3 font-semibold text-gray-900">Start Date</Text>
-              <TouchableOpacity
-                onPress={() => setShowDatePicker(true)}
-                className="flex-row justify-between items-center p-4 bg-white rounded-xl border border-gray-300"
-              >
-                <Text className={sequenceSettings.startDate ? 'text-gray-900' : 'text-gray-400'}>
-                  {sequenceSettings.startDate 
-                    ? new Date(sequenceSettings.startDate).toLocaleDateString()
-                    : 'Select date'
-                  }
-                </Text>
-                <Calendar size={20} color="#6b7280" />
-              </TouchableOpacity>
-              {errors.startDate && (
-                <Text className="mt-1 ml-1 text-sm text-red-500">{errors.startDate}</Text>
-              )}
-              
-              {/* iOS Date Picker Modal */}
-              {showDatePicker && Platform.OS === 'ios' && (
-                <Modal
-                  transparent
-                  animationType="slide"
-                  visible={showDatePicker}
-                  onRequestClose={() => setShowDatePicker(false)}
-                >
-                  <TouchableOpacity 
-                    className="flex-1 justify-end bg-black/30"
-                    activeOpacity={1}
-                    onPress={() => setShowDatePicker(false)}
-                  >
-                    <TouchableOpacity 
-                      activeOpacity={1}
-                      className="bg-white rounded-t-3xl"
-                    >
-                      <View className="flex-row justify-between items-center px-4 py-3 border-b border-gray-200">
-                        <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                          <Text className="text-indigo-600 text-base">Cancel</Text>
-                        </TouchableOpacity>
-                        <Text className="font-semibold text-base">Select Date</Text>
-                        <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                          <Text className="text-indigo-600 text-base font-semibold">Done</Text>
-                        </TouchableOpacity>
-                      </View>
-                      <DateTimePicker
-                        value={sequenceSettings.startDate ? new Date(sequenceSettings.startDate) : new Date()}
-                        mode="date"
-                        display="spinner"
-                        onChange={(_, selectedDate) => {
-                          if (selectedDate) {
-                            dispatch(updateSequenceSettings({ 
-                              startDate: selectedDate.toISOString() 
-                            }));
-                            if (errors.startDate) {
-                              setErrors({ ...errors, startDate: undefined });
-                            }
-                          }
-                        }}
-                        minimumDate={minDate}
-                        maximumDate={maxDate}
-                      />
-                    </TouchableOpacity>
-                  </TouchableOpacity>
-                </Modal>
-              )}
-              
-              {/* Android Date Picker */}
-              {showDatePicker && Platform.OS === 'android' && (
-                <DateTimePicker
-                  value={sequenceSettings.startDate ? new Date(sequenceSettings.startDate) : new Date()}
-                  mode="date"
-                  display="default"
-                  onChange={(_, selectedDate) => {
-                    setShowDatePicker(false);
-                    if (selectedDate) {
-                      dispatch(updateSequenceSettings({ 
-                        startDate: selectedDate.toISOString() 
-                      }));
-                      if (errors.startDate) {
-                        setErrors({ ...errors, startDate: undefined });
-                      }
-                    }
-                  }}
-                  minimumDate={minDate}
-                  maximumDate={maxDate}
-                />
-              )}
-              
-              {/* Web date picker */}
-              {Platform.OS === 'web' && (
-                <input
-                  type="date"
-                  value={sequenceSettings.startDate ? new Date(sequenceSettings.startDate).toISOString().split('T')[0] : ''}
-                  onChange={(e) => {
-                    const selectedDate = new Date(e.target.value);
-                    dispatch(updateSequenceSettings({ 
-                      startDate: selectedDate.toISOString() 
-                    }));
-                    if (errors.startDate) {
-                      setErrors({ ...errors, startDate: undefined });
-                    }
-                  }}
-                  min={minDate.toISOString().split('T')[0]}
-                  max={maxDate.toISOString().split('T')[0]}
-                  className="mt-2 w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900"
-                />
-              )}
-            </View>
+            <DatePicker
+              value={sequenceSettings.startDate}
+              onChange={(date) => {
+                dispatch(updateSequenceSettings({ startDate: date }));
+                if (errors.startDate) {
+                  setErrors({ ...errors, startDate: undefined });
+                }
+              }}
+              label="Start Date"
+              error={errors.startDate}
+              minDate={minDate}
+              maxDate={maxDate}
+            />
 
             {/* Budget */}
             <View className="mb-6">

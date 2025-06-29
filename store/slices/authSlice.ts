@@ -33,10 +33,6 @@ const createUserProfile = async (
   user: any,
   additionalData?: { firstName?: string; lastName?: string },
 ) => {
-  console.log("[AUTH] Creating profile for user:", user.id);
-  console.log("[AUTH] User metadata:", user.user_metadata);
-  console.log("[AUTH] Current session:", await supabase.auth.getSession());
-
   const profileData = {
     id: user.id,
     email: user.email || "",
@@ -44,8 +40,6 @@ const createUserProfile = async (
       additionalData?.firstName || user.user_metadata?.first_name || "User",
     last_name: additionalData?.lastName || user.user_metadata?.last_name || "",
   };
-
-  console.log("[AUTH] Profile data to insert:", profileData);
 
   // First check if profile already exists
   const { data: existingProfiles, error: fetchError } = await supabase

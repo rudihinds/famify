@@ -26,7 +26,7 @@ interface ChildSelectionCardProps {
   activeSequence?: ActiveSequenceInfo;
 }
 
-const ChildSelectionCard: React.FC<ChildSelectionCardProps> = ({ 
+const ChildSelectionCard = React.memo<ChildSelectionCardProps>(({ 
   child, 
   isSelected, 
   onSelect,
@@ -198,6 +198,8 @@ const ChildSelectionCard: React.FC<ChildSelectionCardProps> = ({
       </Animated.View>
     </TouchableOpacity>
   );
-};
+});
+
+ChildSelectionCard.displayName = 'ChildSelectionCard';
 
 export default ChildSelectionCard;

@@ -168,15 +168,7 @@ const sequenceCreationSlice = createSlice({
     
     // State Management
     resetWizard: (state) => {
-      console.log('[SLICE] resetWizard called');
-      console.log('[SLICE] State before reset:', {
-        selectedChildId: state.selectedChildId,
-        isEditing: state.isEditing,
-        editingSequenceId: state.editingSequenceId,
-        currentStep: state.currentStep
-      });
       Object.assign(state, initialState);
-      console.log('[SLICE] State after reset: cleared to initial state');
     },
     
     setLoading: (state, action: PayloadAction<boolean>) => {
@@ -211,13 +203,6 @@ const sequenceCreationSlice = createSlice({
     }>) => {
       const { sequenceId, selectedChildId, sequenceSettings, groups, selectedTasksByGroup } = action.payload;
       
-      console.log('[SLICE] loadSequenceForEditing - payload:', action.payload);
-      console.log('[SLICE] State before loading:', {
-        currentSelectedChildId: state.selectedChildId,
-        currentIsEditing: state.isEditing,
-        currentSettings: state.sequenceSettings
-      });
-      
       // Set editing mode
       state.isEditing = true;
       state.editingSequenceId = sequenceId;
@@ -227,14 +212,6 @@ const sequenceCreationSlice = createSlice({
       state.sequenceSettings = { ...state.sequenceSettings, ...sequenceSettings };
       state.groups = groups;
       state.selectedTasksByGroup = selectedTasksByGroup;
-      
-      console.log('[SLICE] State after loading:', {
-        selectedChildId: state.selectedChildId,
-        isEditing: state.isEditing,
-        editingSequenceId: state.editingSequenceId,
-        sequenceSettings: state.sequenceSettings,
-        groupsCount: state.groups.length
-      });
       
       // Clear any previous errors
       state.error = null;
@@ -270,37 +247,15 @@ const sequenceCreationSlice = createSlice({
 // Async Thunks
 export const fetchSequenceForEditing = createAsyncThunk(
   'sequenceCreation/fetchForEditing',
-  async (sequenceId: string, { dispatch, getState }) => {
-    console.log('[THUNK] fetchSequenceForEditing - Starting with sequenceId:', sequenceId);
-    
-    const stateBefore = (getState() as RootState).sequenceCreation;
-    console.log('[THUNK] State before fetch:', {
-      selectedChildId: stateBefore.selectedChildId,
-      isEditing: stateBefore.isEditing,
-      editingSequenceId: stateBefore.editingSequenceId,
-      currentStep: stateBefore.currentStep
-    });
-    
+  async (sequenceId: string, { dispatch }) => {
     const { sequenceService } = await import('../../services/sequenceService');
-    console.log('[THUNK] About to call sequenceService.getSequenceForEditing');
     const data = await sequenceService.getSequenceForEditing(sequenceId);
     
-    console.log('[THUNK] Retrieved data from service:', data);
-    
     // Load the data into state
-    console.log('[THUNK] Dispatching loadSequenceForEditing with data');
     dispatch(loadSequenceForEditing({
       sequenceId,
       ...data
     }));
-    
-    const stateAfter = (getState() as RootState).sequenceCreation;
-    console.log('[THUNK] State after loadSequenceForEditing:', {
-      selectedChildId: stateAfter.selectedChildId,
-      isEditing: stateAfter.isEditing,
-      sequenceSettings: stateAfter.sequenceSettings,
-      groups: stateAfter.groups
-    });
     
     return data;
   }

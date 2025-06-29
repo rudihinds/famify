@@ -38,11 +38,8 @@ export default function ParentHome() {
       setIsLoadingChildren(true);
       const parentId = user?.id;
 
-      console.log("[HOME] Fetching children for parent ID:", parentId);
-      console.log("[HOME] User object:", user);
 
       if (!parentId) {
-        console.warn("[HOME] No parent ID available");
         setChildren([]);
         return;
       }
@@ -53,14 +50,11 @@ export default function ParentHome() {
         .eq("parent_id", parentId)
         .order("created_at", { ascending: true });
 
-      console.log("[HOME] Children query result:", { data, error });
-      console.log("[HOME] Query used parent_id:", parentId);
 
       if (error) {
-        console.error("[HOME] Error fetching children:", error);
+        console.error("Error fetching children:", error);
         setChildren([]);
       } else {
-        console.log("[HOME] Found children:", data?.length || 0);
         // Transform data to match expected format
         const transformedChildren = (data || []).map((child: any) => ({
           id: child.id,
@@ -73,11 +67,10 @@ export default function ParentHome() {
           tasksTotal: 0, // TODO: Calculate from actual tasks
           lastActive: "Recently", // TODO: Calculate from actual activity
         }));
-        console.log("[HOME] Transformed children:", transformedChildren);
         setChildren(transformedChildren);
       }
     } catch (error) {
-      console.error("[HOME] Error in fetchChildren:", error);
+      console.error("Error in fetchChildren:", error);
       setChildren([]);
     } finally {
       setIsLoadingChildren(false);
@@ -110,7 +103,6 @@ export default function ParentHome() {
         return;
       }
 
-      console.log("[HOME] Creating test child with parent ID:", parentId);
 
       const { data, error } = await supabase
         .from("children")
@@ -128,16 +120,15 @@ export default function ParentHome() {
         .single();
 
       if (error) {
-        console.error("[HOME] Error creating test child:", error);
+        console.error("Error creating test child:", error);
         Alert.alert("Error", `Failed to create test child: ${error.message}`);
       } else {
-        console.log("[HOME] Test child created:", data);
         Alert.alert("Success", "Test child created successfully!");
         // Refresh the children list using the shared function
         await fetchChildrenData();
       }
     } catch (error) {
-      console.error("[HOME] Error in createTestChild:", error);
+      console.error("Error in createTestChild:", error);
       Alert.alert("Error", "Failed to create test child");
     } finally {
       setIsCreatingTestData(false);

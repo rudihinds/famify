@@ -553,8 +553,6 @@ class SequenceService {
   }
 
   async getSequenceForEditing(sequenceId: string) {
-    console.log('[SERVICE] getSequenceForEditing called with sequenceId:', sequenceId);
-    
     const { data: sequence, error } = await supabase
       .from('sequences')
       .select(`
@@ -574,18 +572,9 @@ class SequenceService {
       .single();
 
     if (error) {
-      console.error('[SERVICE] Error fetching sequence for editing:', error);
+      console.error('Error fetching sequence for editing:', error);
       throw error;
     }
-
-    console.log('[SERVICE] Fetched sequence from DB:', sequence);
-    console.log('[SERVICE] Sequence details:', {
-      id: sequence.id,
-      child_id: sequence.child_id,
-      type: sequence.type,
-      groupsCount: sequence.groups?.length,
-      taskInstancesCount: sequence.task_instances?.length
-    });
 
     // Transform the data to match our Redux state shape
     const result = {
@@ -613,10 +602,6 @@ class SequenceService {
       }
       result.selectedTasksByGroup[instance.group_id].push(instance.template_id);
     });
-
-    console.log('[SERVICE] Transformed result for Redux:', result);
-    console.log('[SERVICE] Period mapping:', sequence.type, '->', result.sequenceSettings.period);
-    console.log('[SERVICE] Returning transformed data');
 
     return result;
   }

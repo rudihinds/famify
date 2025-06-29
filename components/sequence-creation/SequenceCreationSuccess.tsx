@@ -14,12 +14,14 @@ import * as Haptics from 'expo-haptics';
 interface SequenceCreationSuccessProps {
   visible: boolean;
   childName: string;
+  isEditing?: boolean;
   onComplete: () => void;
 }
 
 export default function SequenceCreationSuccess({
   visible,
   childName,
+  isEditing = false,
   onComplete,
 }: SequenceCreationSuccessProps) {
   const scale = useSharedValue(0);
@@ -94,7 +96,7 @@ export default function SequenceCreationSuccess({
             Success!
           </Text>
           <Text className="text-gray-600 text-center">
-            Sequence created for {childName}
+            Sequence {isEditing ? 'updated' : 'created'} for {childName}
           </Text>
           
           {/* Loading dots animation */}

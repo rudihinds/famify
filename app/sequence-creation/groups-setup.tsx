@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { 
@@ -14,18 +13,11 @@ import {
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import GroupCard from '../../components/sequence-creation/GroupCard';
 import GroupEditModal from '../../components/sequence-creation/GroupEditModal';
+import { useRouter } from 'expo-router';
 
 export default function GroupsSetupScreen() {
-  // Safely get router
-  let router;
-  try {
-    router = useRouter();
-  } catch (error) {
-    // Navigation not ready yet
-    return null;
-  }
-  
   const dispatch = useDispatch<AppDispatch>();
+  const router = useRouter();
   const groups = useSelector(selectGroups);
   const canAdvance = useSelector((state: RootState) => selectIsStepValid(2)(state));
   const selectedTasksByGroup = useSelector((state: RootState) => state.sequenceCreation.selectedTasksByGroup);
@@ -38,28 +30,28 @@ export default function GroupsSetupScreen() {
     dispatch(setCurrentStep(2));
   }, [dispatch]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (canAdvance && groups.length > 0) {
       // Navigate to first group's task selection
       router.push(`/sequence-creation/add-tasks/${groups[0].id}?groupIndex=0&totalGroups=${groups.length}`);
     }
-  };
+  }, [canAdvance, groups, router]);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     router.back();
-  };
+  }, [router]);
 
-  const handleAddGroup = () => {
+  const handleAddGroup = useCallback(() => {
     setEditingGroup(undefined);
     setModalVisible(true);
-  };
+  }, []);
 
-  const handleEditGroup = (group: typeof groups[0]) => {
+  const handleEditGroup = useCallback((group: typeof groups[0]) => {
     setEditingGroup(group);
     setModalVisible(true);
-  };
+  }, []);
 
-  const handleSaveGroup = (groupData: { name: string; activeDays: number[] }) => {
+  const handleSaveGroup = useCallback((groupData: { name: string; activeDays: number[] }) => {
     if (editingGroup) {
       dispatch(updateGroup({
         id: editingGroup.id,
@@ -69,9 +61,9 @@ export default function GroupsSetupScreen() {
       dispatch(addGroup(groupData));
     }
     setModalVisible(false);
-  };
+  }, [dispatch, editingGroup]);
 
-  const handleDeleteGroup = (groupId: string, hasTasks: boolean) => {
+  const handleDeleteGroup = useCallback((groupId: string, hasTasks: boolean) => {
     const doDelete = () => {
       dispatch(deleteGroup(groupId));
     };
@@ -95,7 +87,7 @@ export default function GroupsSetupScreen() {
         ]
       );
     }
-  };
+  }, [dispatch]);
 
   return (
     <View className="flex-1 bg-gray-100">

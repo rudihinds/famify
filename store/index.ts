@@ -7,6 +7,7 @@ import childSlice from "./slices/childSlice";
 import connectionSlice from "./slices/connectionSlice";
 import sequenceCreationSlice from "./slices/sequenceCreationSlice";
 import sequencesSlice from "./slices/sequencesSlice";
+import { sequenceApi } from "./api/sequenceApi";
 
 // Storage implementation with proper error handling
 let storage: any;
@@ -90,6 +91,7 @@ const rootReducer = combineReducers({
   connection: connectionSlice,
   sequenceCreation: persistReducer(sequenceCreationPersistConfig, sequenceCreationSlice),
   sequences: sequencesSlice,
+  [sequenceApi.reducerPath]: sequenceApi.reducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
@@ -114,7 +116,7 @@ export const store = configureStore({
           "REGISTER",
         ],
       },
-    }),
+    }).concat(sequenceApi.middleware),
 });
 
 export const persistor = persistStore(store);
