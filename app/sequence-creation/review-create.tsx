@@ -47,12 +47,6 @@ export default function ReviewCreateScreen() {
     dispatch(setCurrentStep(4));
     
     // Debug logging
-    console.log('Review Screen Data:', {
-      sequenceSettings,
-      groups: groups.map(g => ({ id: g.id, name: g.name, activeDays: g.activeDays })),
-      totalTasks,
-      selectedTasksByGroup
-    });
   }, [dispatch]);
 
   // Fetch child details

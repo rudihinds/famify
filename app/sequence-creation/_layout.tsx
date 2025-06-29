@@ -7,21 +7,8 @@ import { selectIsStepValid, selectIsEditing } from '../../store/slices/sequenceC
 import { useNavigationSafety } from '../../hooks/useNavigationSafety';
 
 export default function SequenceCreationLayout() {
-  const { goBack, isNavigationReady } = useNavigationSafety();
-  let segments;
-  
-  try {
-    segments = useSegments();
-  } catch (error) {
-    // Navigation context not ready
-    console.warn('Navigation context not ready in SequenceCreationLayout');
-    return null;
-  }
-  
-  // Ensure navigation is ready
-  if (!isNavigationReady() || !segments) {
-    return null;
-  }
+  const { goBack } = useNavigationSafety();
+  const segments = useSegments();
   
   // Get validation for all steps
   const step0Valid = useSelector((state: RootState) => selectIsStepValid(0)(state));

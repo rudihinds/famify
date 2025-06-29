@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { Alert } from 'react-native';
 
@@ -23,19 +23,8 @@ export function useNavigationSafety(options: NavigationSafetyOptions = {}) {
     canNavigate = true,
   } = options;
 
-  const routerRef = useRef<ReturnType<typeof useRouter> | null>(null);
-  const navigationReadyRef = useRef(false);
-
-  // Try to get router safely
-  useEffect(() => {
-    try {
-      routerRef.current = useRouter();
-      navigationReadyRef.current = true;
-    } catch (error) {
-      // Navigation context not ready yet
-      navigationReadyRef.current = false;
-    }
-  }, []);
+  // Always call useRouter - no conditional hooks
+  const router = useRouter();
 
   /**
    * Safe navigation with context check
@@ -44,19 +33,12 @@ export function useNavigationSafety(options: NavigationSafetyOptions = {}) {
     path: string,
     options?: { replace?: boolean }
   ) => {
-    if (!navigationReadyRef.current || !routerRef.current) {
-      console.warn('Navigation context not ready, deferring navigation');
-      // Defer navigation until context is ready
-      setTimeout(() => navigate(path, options), 100);
-      return;
-    }
-
     const performNavigation = () => {
       try {
         if (options?.replace) {
-          routerRef.current!.replace(path as any);
+          router.replace(path as any);
         } else {
-          routerRef.current!.push(path as any);
+          router.push(path as any);
         }
       } catch (error) {
         console.error('Navigation error:', error);
@@ -85,20 +67,15 @@ export function useNavigationSafety(options: NavigationSafetyOptions = {}) {
     } else {
       performNavigation();
     }
-  }, [canNavigate, message]);
+  }, [canNavigate, message, router]);
 
   /**
    * Safe back navigation
    */
   const goBack = useCallback(() => {
-    if (!navigationReadyRef.current || !routerRef.current) {
-      console.warn('Navigation context not ready for back navigation');
-      return;
-    }
-
     const performBack = () => {
       try {
-        routerRef.current!.back();
+        router.back();
       } catch (error) {
         console.error('Back navigation error:', error);
       }
@@ -123,13 +100,14 @@ export function useNavigationSafety(options: NavigationSafetyOptions = {}) {
     } else {
       performBack();
     }
-  }, [canNavigate, message]);
+  }, [canNavigate, message, router]);
 
   /**
    * Check if navigation is ready
+   * Since we always call useRouter, navigation is always "ready"
    */
   const isNavigationReady = useCallback(() => {
-    return navigationReadyRef.current;
+    return true;
   }, []);
 
   return {
@@ -137,38 +115,4 @@ export function useNavigationSafety(options: NavigationSafetyOptions = {}) {
     goBack,
     isNavigationReady,
   };
-}
-
-/**
- * Hook to check for navigation readiness without using router
- */
-export function useNavigationReady() {
-  const isReady = useRef(false);
-
-  useEffect(() => {
-    // Check if we can safely use router
-    const checkReady = () => {
-      try {
-        useRouter();
-        isReady.current = true;
-        return true;
-      } catch {
-        isReady.current = false;
-        return false;
-      }
-    };
-
-    if (!checkReady()) {
-      // Keep checking until ready
-      const interval = setInterval(() => {
-        if (checkReady()) {
-          clearInterval(interval);
-        }
-      }, 100);
-
-      return () => clearInterval(interval);
-    }
-  }, []);
-
-  return isReady.current;
 }

@@ -133,10 +133,6 @@ export default function SelectChildScreen() {
     }
   }, [canAdvance, navigate]);
 
-  // Wait for navigation to be ready
-  if (!isNavigationReady()) {
-    return <LoadingState message="Initializing..." fullScreen />;
-  }
 
   return (
     <View className="flex-1 bg-gray-100">
