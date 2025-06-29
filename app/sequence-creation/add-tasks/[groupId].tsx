@@ -144,9 +144,9 @@ export default function AddTasksScreen() {
       }
       return newSet;
     });
-  };
+  }, []);
 
-  const handleCreateCustomTask = (categoryId: string) => {
+  const handleCreateCustomTask = useCallback((categoryId: string) => {
     setSelectedCategoryId(categoryId);
     setCustomTaskName('');
     setShowCustomTaskModal(true);
