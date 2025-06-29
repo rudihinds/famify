@@ -207,11 +207,16 @@ export const createSequence = createAsyncThunk(
   async (_, { getState, rejectWithValue }) => {
     const state = getState() as RootState;
     const { selectedChildId, sequenceSettings, groups, selectedTasksByGroup } = state.sequenceCreation;
+    const parentId = state.auth.user?.id;
     
     try {
       // Validate all required data
       if (!selectedChildId || !sequenceSettings.period || !sequenceSettings.startDate || !sequenceSettings.budget) {
         throw new Error('Missing required sequence data');
+      }
+      
+      if (!parentId) {
+        throw new Error('Parent ID not found');
       }
       
       // Validate groups and tasks
@@ -227,12 +232,31 @@ export const createSequence = createAsyncThunk(
         throw new Error('Each group must have at least one task');
       }
       
-      // TODO: Implement actual API call in Task 9
-      // For now, just simulate success
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Import sequence service
+      const { sequenceService } = await import('../../services/sequenceService');
       
-      return { success: true };
+      // Check if child already has an active sequence
+      const hasActiveSequence = await sequenceService.checkActiveSequence(selectedChildId);
+      if (hasActiveSequence) {
+        throw new Error('This child already has an active sequence. Please complete or archive it first.');
+      }
+      
+      // Create the sequence
+      const result = await sequenceService.createSequence({
+        childId: selectedChildId,
+        parentId,
+        period: sequenceSettings.period as '1week' | '2weeks' | '1month' | 'ongoing',
+        startDate: sequenceSettings.startDate,
+        budget: sequenceSettings.budget,
+        budgetFamcoins: sequenceSettings.budgetFamcoins || 0,
+        currencyCode: sequenceSettings.currencyCode,
+        groups,
+        selectedTasksByGroup,
+      });
+      
+      return { success: true, sequenceId: result.sequenceId };
     } catch (error: any) {
+      console.error('Failed to create sequence:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -269,9 +293,24 @@ export const selectValidationErrors = (state: RootState) => state.sequenceCreati
 export const selectTasksForGroup = (groupId: string) => (state: RootState) => 
   state.sequenceCreation.selectedTasksByGroup[groupId] || [];
 
-export const selectTotalTaskCount = (state: RootState) => 
-  Object.values(state.sequenceCreation.selectedTasksByGroup)
-    .reduce((total, tasks) => total + tasks.length, 0);
+export const selectTotalTaskCount = (state: RootState) => {
+  const { groups, selectedTasksByGroup, sequenceSettings } = state.sequenceCreation;
+  
+  // Calculate number of weeks based on period
+  let weeks = 1;
+  if (sequenceSettings.period === '2weeks') weeks = 2;
+  else if (sequenceSettings.period === '1month') weeks = 4.34; // Average weeks in a month
+  
+  // Calculate total task completions
+  let totalCompletions = 0;
+  groups.forEach(group => {
+    const tasksInGroup = selectedTasksByGroup[group.id]?.length || 0;
+    const daysPerWeek = group.activeDays.length;
+    totalCompletions += tasksInGroup * daysPerWeek * weeks;
+  });
+  
+  return Math.round(totalCompletions);
+};
 
 // Validation selectors
 export const selectIsStepValid = (step: number) => (state: RootState) => {

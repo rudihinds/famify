@@ -7,8 +7,22 @@ import { selectIsStepValid } from '../../store/slices/sequenceCreationSlice';
 import { useRouter, useSegments } from 'expo-router';
 
 export default function SequenceCreationLayout() {
-  const router = useRouter();
-  const segments = useSegments();
+  let router;
+  let segments;
+  
+  try {
+    router = useRouter();
+    segments = useSegments();
+  } catch (error) {
+    // Navigation context not ready
+    console.warn('Navigation context not ready in SequenceCreationLayout');
+    return null;
+  }
+  
+  // Ensure navigation is ready
+  if (!router || !segments) {
+    return null;
+  }
   
   // Get validation for all steps
   const step0Valid = useSelector((state: RootState) => selectIsStepValid(0)(state));

@@ -10,7 +10,8 @@
     "newArchEnabled": true,
     "ios": {
       "icon": "./assets/images/icon.png",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.testtempo"
     },
     "android": {
       "icon": "./assets/images/adaptive-icon.png",
@@ -18,7 +19,10 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -35,7 +39,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-barcode-scanner"
     ],
     "experiments": {
       "typedRoutes": true,

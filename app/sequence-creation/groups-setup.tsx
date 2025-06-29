@@ -1,21 +1,37 @@
-import React, { useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { 
   setCurrentStep,
   addGroup,
+  updateGroup,
+  deleteGroup,
   selectGroups,
-  selectCanAdvanceStep
+  selectIsStepValid
 } from '../../store/slices/sequenceCreationSlice';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
+import GroupCard from '../../components/sequence-creation/GroupCard';
+import GroupEditModal from '../../components/sequence-creation/GroupEditModal';
 
 export default function GroupsSetupScreen() {
-  const router = useRouter();
+  // Safely get router
+  let router;
+  try {
+    router = useRouter();
+  } catch (error) {
+    // Navigation not ready yet
+    return null;
+  }
+  
   const dispatch = useDispatch<AppDispatch>();
   const groups = useSelector(selectGroups);
-  const canAdvance = useSelector(selectCanAdvanceStep);
+  const canAdvance = useSelector((state: RootState) => selectIsStepValid(2)(state));
+  const selectedTasksByGroup = useSelector((state: RootState) => state.sequenceCreation.selectedTasksByGroup);
+  
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<typeof groups[0] | undefined>(undefined);
 
   useEffect(() => {
     // Set current step when screen mounts
@@ -33,11 +49,52 @@ export default function GroupsSetupScreen() {
     router.back();
   };
 
-  const addTestGroup = () => {
-    dispatch(addGroup({
-      name: `Test Group ${groups.length + 1}`,
-      activeDays: [1, 2, 3, 4, 5], // Mon-Fri
-    }));
+  const handleAddGroup = () => {
+    setEditingGroup(undefined);
+    setModalVisible(true);
+  };
+
+  const handleEditGroup = (group: typeof groups[0]) => {
+    setEditingGroup(group);
+    setModalVisible(true);
+  };
+
+  const handleSaveGroup = (groupData: { name: string; activeDays: number[] }) => {
+    if (editingGroup) {
+      dispatch(updateGroup({
+        id: editingGroup.id,
+        updates: groupData,
+      }));
+    } else {
+      dispatch(addGroup(groupData));
+    }
+    setModalVisible(false);
+  };
+
+  const handleDeleteGroup = (groupId: string, hasTasks: boolean) => {
+    const doDelete = () => {
+      dispatch(deleteGroup(groupId));
+    };
+    
+    if (hasTasks) {
+      Alert.alert(
+        'Delete Group',
+        'This group has tasks assigned. Are you sure you want to delete it?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: doDelete },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Delete Group',
+        'Are you sure you want to delete this group?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: doDelete },
+        ]
+      );
+    }
   };
 
   return (
@@ -53,16 +110,19 @@ export default function GroupsSetupScreen() {
         {/* Groups List */}
         {groups.length > 0 ? (
           <View className="mb-6">
-            {groups.map((group, index) => (
-              <View key={group.id} className="bg-white rounded-xl p-4 shadow-sm mb-3">
-                <Text className="font-semibold text-gray-900">
-                  {group.name}
-                </Text>
-                <Text className="text-gray-500 text-sm mt-1">
-                  Active days: {group.activeDays.length}
-                </Text>
-              </View>
-            ))}
+            {groups.map((group) => {
+              const hasTasks = (selectedTasksByGroup[group.id] || []).length > 0;
+              
+              return (
+                <GroupCard
+                  key={group.id}
+                  group={group}
+                  onEdit={() => handleEditGroup(group)}
+                  onDelete={() => handleDeleteGroup(group.id, hasTasks)}
+                  hasAssignedTasks={hasTasks}
+                />
+              );
+            })}
           </View>
         ) : (
           <View className="bg-white rounded-xl p-6 shadow-sm mb-6">
@@ -77,29 +137,14 @@ export default function GroupsSetupScreen() {
 
         {/* Add Group Button */}
         <TouchableOpacity
-          onPress={addTestGroup}
+          onPress={handleAddGroup}
           className="flex-row items-center justify-center py-4 px-6 bg-white rounded-xl border-2 border-dashed border-gray-300 mb-4"
         >
           <Plus size={20} color="#6b7280" />
           <Text className="font-semibold ml-2 text-gray-700">
-            Add Group (Test)
+            Add Group
           </Text>
         </TouchableOpacity>
-
-        <View className="bg-blue-50 rounded-xl p-4 mb-4">
-          <Text className="text-blue-700 text-sm">
-            Full implementation will include:
-          </Text>
-          <Text className="text-blue-600 text-sm mt-1">
-            • Group name input
-          </Text>
-          <Text className="text-blue-600 text-sm">
-            • Day selector (Mon-Sun)
-          </Text>
-          <Text className="text-blue-600 text-sm">
-            • Edit/Delete functionality
-          </Text>
-        </View>
       </ScrollView>
 
       {/* Navigation Buttons */}
@@ -131,6 +176,15 @@ export default function GroupsSetupScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Group Edit Modal */}
+      <GroupEditModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSave={handleSaveGroup}
+        existingGroup={editingGroup}
+        existingGroupNames={groups.map(g => g.name)}
+      />
     </View>
   );
 }

@@ -9,7 +9,8 @@ import {
   validateConnectionToken,
   clearError,
 } from "../../store/slices/connectionSlice";
-import { BarCodeScanner } from "expo-barcode-scanner";
+// import { BarCodeScanner } from "expo-barcode-scanner";
+// TODO: Uncomment when running on device with camera
 import { ArrowLeft, Camera, Heart, Code } from "lucide-react-native";
 import { isDevMode, DEV_CONFIG } from "../../config/development";
 import * as Haptics from "expo-haptics";
@@ -28,8 +29,10 @@ export default function QRScannerScreen() {
 
   useEffect(() => {
     const getBarCodeScannerPermissions = async () => {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
-      setHasPermission(status === "granted");
+      // TODO: Uncomment when running on device with camera
+      // const { status } = await BarCodeScanner.requestPermissionsAsync();
+      // setHasPermission(status === "granted");
+      setHasPermission(false); // Temporary: disable scanner
     };
 
     getBarCodeScannerPermissions();
@@ -127,7 +130,11 @@ export default function QRScannerScreen() {
                 We need camera access to scan QR codes from your parent
               </Text>
               <TouchableOpacity
-                onPress={() => BarCodeScanner.requestPermissionsAsync()}
+                onPress={() => {
+                  // TODO: Uncomment when running on device
+                  // BarCodeScanner.requestPermissionsAsync()
+                  Alert.alert('Scanner Disabled', 'Scanner requires a physical device with camera');
+                }}
                 className="bg-purple-600 py-4 px-6 rounded-xl"
               >
                 <Text className="text-white font-bold text-lg text-center">
@@ -202,10 +209,12 @@ export default function QRScannerScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* TODO: Uncomment when running on device with camera
       <BarCodeScanner
         onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
         style={StyleSheet.absoluteFillObject}
-      />
+      /> */}
+      <View style={StyleSheet.absoluteFillObject} className="bg-gray-900" />
 
       <View className="absolute bottom-0 left-0 right-0 bg-black/80 p-6">
         <Text className="text-white text-xl font-bold text-center mb-2">

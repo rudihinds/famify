@@ -15,7 +15,15 @@ import ChildSelectionCard from '../../components/sequence-creation/ChildSelectio
 import * as Haptics from 'expo-haptics';
 
 export default function SelectChildScreen() {
-  const router = useRouter();
+  // Safely get router
+  let router;
+  try {
+    router = useRouter();
+  } catch (error) {
+    // Navigation not ready yet
+    return null;
+  }
+  
   const dispatch = useDispatch<AppDispatch>();
   const selectedChildId = useSelector(selectSelectedChild);
   // Use step 0 validation directly instead of relying on currentStep

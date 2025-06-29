@@ -6,6 +6,7 @@ import authSlice from "./slices/authSlice";
 import childSlice from "./slices/childSlice";
 import connectionSlice from "./slices/connectionSlice";
 import sequenceCreationSlice from "./slices/sequenceCreationSlice";
+import sequencesSlice from "./slices/sequencesSlice";
 
 // Storage implementation with proper error handling
 let storage: any;
@@ -88,6 +89,7 @@ const rootReducer = combineReducers({
   child: childSlice,
   connection: connectionSlice,
   sequenceCreation: persistReducer(sequenceCreationPersistConfig, sequenceCreationSlice),
+  sequences: sequencesSlice,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

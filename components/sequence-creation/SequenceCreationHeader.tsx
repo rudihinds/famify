@@ -37,7 +37,8 @@ const SequenceCreationHeader: React.FC<SequenceCreationHeaderProps> = ({ onCance
               if (onCancel) {
                 onCancel();
               } else {
-                router.back();
+                // Navigate back to parent dashboard, exiting the modal
+                router.replace('/parent/dashboard');
               }
             },
           },
@@ -48,7 +49,8 @@ const SequenceCreationHeader: React.FC<SequenceCreationHeaderProps> = ({ onCance
       if (onCancel) {
         onCancel();
       } else {
-        router.back();
+        // Navigate back to parent dashboard, exiting the modal
+        router.replace('/parent/dashboard');
       }
     }
   };
@@ -61,7 +63,7 @@ const SequenceCreationHeader: React.FC<SequenceCreationHeaderProps> = ({ onCance
           onPress={handleCancel}
           className="p-2 -ml-2"
           accessibilityLabel="Cancel sequence creation"
-          accessibilityHint="Returns to previous screen"
+          accessibilityHint="Exits sequence creation and returns to tasks screen"
         >
           <X size={24} color="#6b7280" />
         </TouchableOpacity>
