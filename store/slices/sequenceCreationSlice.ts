@@ -39,6 +39,10 @@ interface SequenceCreationState {
   
   // Validation States
   validationErrors: Record<string, string>;  // step-specific errors
+  
+  // Editing Mode
+  isEditing: boolean;
+  editingSequenceId: string | null;
 }
 
 // Initial state
@@ -58,6 +62,8 @@ const initialState: SequenceCreationState = {
   isLoading: false,
   error: null,
   validationErrors: {},
+  isEditing: false,
+  editingSequenceId: null,
 };
 
 // Helper Functions
@@ -162,7 +168,15 @@ const sequenceCreationSlice = createSlice({
     
     // State Management
     resetWizard: (state) => {
+      console.log('[SLICE] resetWizard called');
+      console.log('[SLICE] State before reset:', {
+        selectedChildId: state.selectedChildId,
+        isEditing: state.isEditing,
+        editingSequenceId: state.editingSequenceId,
+        currentStep: state.currentStep
+      });
       Object.assign(state, initialState);
+      console.log('[SLICE] State after reset: cleared to initial state');
     },
     
     setLoading: (state, action: PayloadAction<boolean>) => {
@@ -181,6 +195,51 @@ const sequenceCreationSlice = createSlice({
     clearValidationErrors: (state) => {
       state.validationErrors = {};
     },
+    
+    // Editing Mode
+    setEditingMode: (state, action: PayloadAction<{sequenceId: string; isEditing: boolean}>) => {
+      state.isEditing = action.payload.isEditing;
+      state.editingSequenceId = action.payload.sequenceId;
+    },
+    
+    loadSequenceForEditing: (state, action: PayloadAction<{
+      sequenceId: string;
+      selectedChildId: string;
+      sequenceSettings: Partial<SequenceSettings>;
+      groups: Group[];
+      selectedTasksByGroup: Record<string, string[]>;
+    }>) => {
+      const { sequenceId, selectedChildId, sequenceSettings, groups, selectedTasksByGroup } = action.payload;
+      
+      console.log('[SLICE] loadSequenceForEditing - payload:', action.payload);
+      console.log('[SLICE] State before loading:', {
+        currentSelectedChildId: state.selectedChildId,
+        currentIsEditing: state.isEditing,
+        currentSettings: state.sequenceSettings
+      });
+      
+      // Set editing mode
+      state.isEditing = true;
+      state.editingSequenceId = sequenceId;
+      
+      // Populate all fields with existing data
+      state.selectedChildId = selectedChildId;
+      state.sequenceSettings = { ...state.sequenceSettings, ...sequenceSettings };
+      state.groups = groups;
+      state.selectedTasksByGroup = selectedTasksByGroup;
+      
+      console.log('[SLICE] State after loading:', {
+        selectedChildId: state.selectedChildId,
+        isEditing: state.isEditing,
+        editingSequenceId: state.editingSequenceId,
+        sequenceSettings: state.sequenceSettings,
+        groupsCount: state.groups.length
+      });
+      
+      // Clear any previous errors
+      state.error = null;
+      state.validationErrors = {};
+    },
   },
   extraReducers: (builder) => {
     // Handle async thunk cases
@@ -191,8 +250,15 @@ const sequenceCreationSlice = createSlice({
       })
       .addCase(createSequence.fulfilled, (state) => {
         state.isLoading = false;
-        // Reset wizard on successful creation
-        Object.assign(state, initialState);
+        // Only reset wizard for new sequences, not updates
+        if (!state.isEditing) {
+          // Reset wizard on successful creation
+          Object.assign(state, initialState);
+        } else {
+          // For updates, just clear the editing flag
+          state.isEditing = false;
+          state.editingSequenceId = null;
+        }
       })
       .addCase(createSequence.rejected, (state, action) => {
         state.isLoading = false;
@@ -202,11 +268,49 @@ const sequenceCreationSlice = createSlice({
 });
 
 // Async Thunks
+export const fetchSequenceForEditing = createAsyncThunk(
+  'sequenceCreation/fetchForEditing',
+  async (sequenceId: string, { dispatch, getState }) => {
+    console.log('[THUNK] fetchSequenceForEditing - Starting with sequenceId:', sequenceId);
+    
+    const stateBefore = (getState() as RootState).sequenceCreation;
+    console.log('[THUNK] State before fetch:', {
+      selectedChildId: stateBefore.selectedChildId,
+      isEditing: stateBefore.isEditing,
+      editingSequenceId: stateBefore.editingSequenceId,
+      currentStep: stateBefore.currentStep
+    });
+    
+    const { sequenceService } = await import('../../services/sequenceService');
+    console.log('[THUNK] About to call sequenceService.getSequenceForEditing');
+    const data = await sequenceService.getSequenceForEditing(sequenceId);
+    
+    console.log('[THUNK] Retrieved data from service:', data);
+    
+    // Load the data into state
+    console.log('[THUNK] Dispatching loadSequenceForEditing with data');
+    dispatch(loadSequenceForEditing({
+      sequenceId,
+      ...data
+    }));
+    
+    const stateAfter = (getState() as RootState).sequenceCreation;
+    console.log('[THUNK] State after loadSequenceForEditing:', {
+      selectedChildId: stateAfter.selectedChildId,
+      isEditing: stateAfter.isEditing,
+      sequenceSettings: stateAfter.sequenceSettings,
+      groups: stateAfter.groups
+    });
+    
+    return data;
+  }
+);
+
 export const createSequence = createAsyncThunk(
   'sequenceCreation/create',
   async (_, { getState, rejectWithValue }) => {
     const state = getState() as RootState;
-    const { selectedChildId, sequenceSettings, groups, selectedTasksByGroup } = state.sequenceCreation;
+    const { selectedChildId, sequenceSettings, groups, selectedTasksByGroup, isEditing, editingSequenceId } = state.sequenceCreation;
     const parentId = state.auth.user?.id;
     
     try {
@@ -235,24 +339,52 @@ export const createSequence = createAsyncThunk(
       // Import sequence service
       const { sequenceService } = await import('../../services/sequenceService');
       
-      // Check if child already has an active sequence
-      const hasActiveSequence = await sequenceService.checkActiveSequence(selectedChildId);
-      if (hasActiveSequence) {
-        throw new Error('This child already has an active sequence. Please complete or archive it first.');
+      // Only check for active sequence if not editing
+      if (!isEditing) {
+        const hasActiveSequence = await sequenceService.checkActiveSequence(selectedChildId);
+        if (hasActiveSequence) {
+          throw new Error('This child already has an active sequence. Please complete or archive it first.');
+        }
       }
       
-      // Create the sequence
-      const result = await sequenceService.createSequence({
-        childId: selectedChildId,
-        parentId,
-        period: sequenceSettings.period as '1week' | '2weeks' | '1month' | 'ongoing',
-        startDate: sequenceSettings.startDate,
-        budget: sequenceSettings.budget,
-        budgetFamcoins: sequenceSettings.budgetFamcoins || 0,
-        currencyCode: sequenceSettings.currencyCode,
-        groups,
-        selectedTasksByGroup,
-      });
+      // Create or update the sequence
+      let result;
+      
+      // Map Redux period format to service format
+      const periodMap: Record<string, string> = {
+        'weekly': '1week',
+        'fortnightly': '2weeks',
+        'monthly': '1month',
+      };
+      const servicePeriod = periodMap[sequenceSettings.period || ''] || '1week';
+      
+      if (isEditing && editingSequenceId) {
+        // Update existing sequence
+        result = await sequenceService.updateSequence(editingSequenceId, {
+          childId: selectedChildId,
+          parentId,
+          period: servicePeriod as '1week' | '2weeks' | '1month' | 'ongoing',
+          startDate: sequenceSettings.startDate,
+          budget: sequenceSettings.budget,
+          budgetFamcoins: sequenceSettings.budgetFamcoins || 0,
+          currencyCode: sequenceSettings.currencyCode,
+          groups,
+          selectedTasksByGroup,
+        });
+      } else {
+        // Create new sequence
+        result = await sequenceService.createSequence({
+          childId: selectedChildId,
+          parentId,
+          period: servicePeriod as '1week' | '2weeks' | '1month' | 'ongoing',
+          startDate: sequenceSettings.startDate,
+          budget: sequenceSettings.budget,
+          budgetFamcoins: sequenceSettings.budgetFamcoins || 0,
+          currencyCode: sequenceSettings.currencyCode,
+          groups,
+          selectedTasksByGroup,
+        });
+      }
       
       return { success: true, sequenceId: result.sequenceId };
     } catch (error: any) {
@@ -278,7 +410,12 @@ export const {
   setError,
   setValidationError,
   clearValidationErrors,
+  setEditingMode,
+  loadSequenceForEditing,
 } = sequenceCreationSlice.actions;
+
+// Export thunks
+export { fetchSequenceForEditing, createSequence };
 
 // Basic selectors
 export const selectSelectedChild = (state: RootState) => state.sequenceCreation.selectedChildId;
@@ -288,6 +425,8 @@ export const selectCurrentStep = (state: RootState) => state.sequenceCreation.cu
 export const selectIsLoading = (state: RootState) => state.sequenceCreation.isLoading;
 export const selectError = (state: RootState) => state.sequenceCreation.error;
 export const selectValidationErrors = (state: RootState) => state.sequenceCreation.validationErrors;
+export const selectIsEditing = (state: RootState) => state.sequenceCreation.isEditing;
+export const selectEditingSequenceId = (state: RootState) => state.sequenceCreation.editingSequenceId;
 
 // Computed selectors
 export const selectTasksForGroup = (groupId: string) => (state: RootState) => 
@@ -298,8 +437,8 @@ export const selectTotalTaskCount = (state: RootState) => {
   
   // Calculate number of weeks based on period
   let weeks = 1;
-  if (sequenceSettings.period === '2weeks') weeks = 2;
-  else if (sequenceSettings.period === '1month') weeks = 4.34; // Average weeks in a month
+  if (sequenceSettings.period === 'fortnightly') weeks = 2;
+  else if (sequenceSettings.period === 'monthly') weeks = 4.34; // Average weeks in a month
   
   // Calculate total task completions
   let totalCompletions = 0;

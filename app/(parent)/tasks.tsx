@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, RefreshControl, ActivityIndic
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Plus, Calendar, CheckCircle, Clock, Filter } from "lucide-react-native";
-import { useRouter, useIsFocused } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState, AppDispatch } from "../../store";
 import { childService } from "../../services/childService";
@@ -18,7 +18,6 @@ export default function TasksScreen() {
   const [hasChildren, setHasChildren] = useState(false);
   const [isCheckingChildren, setIsCheckingChildren] = useState(true);
   
-  const isFocused = useIsFocused();
   const activeSequences = useSelector(selectActiveSequences);
   const isLoadingSequences = useSelector(selectIsLoadingSequences);
   const isRefreshing = useSelector(selectIsRefreshingSequences);
@@ -27,12 +26,14 @@ export default function TasksScreen() {
     checkForChildren();
   }, [user?.id]);
   
-  // Fetch sequences when tab gains focus or user changes
-  useEffect(() => {
-    if (isFocused && user?.id) {
-      dispatch(fetchActiveSequences(user.id));
-    }
-  }, [isFocused, user?.id, dispatch]);
+  // Fetch sequences when tab gains focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user?.id) {
+        dispatch(fetchActiveSequences(user.id));
+      }
+    }, [user?.id, dispatch])
+  );
   
   const checkForChildren = async () => {
     if (!user?.id) {
@@ -51,7 +52,10 @@ export default function TasksScreen() {
   };
   
   const handleCreateSequence = () => {
+    console.log('[TASKS] Create Sequence button clicked');
+    console.log('[TASKS] About to reset wizard');
     dispatch(resetWizard()); // Clear any previous state
+    console.log('[TASKS] Wizard reset complete, navigating to select-child');
     router.push('/sequence-creation/select-child');
   };
   
@@ -158,9 +162,9 @@ export default function TasksScreen() {
                         {sequence.childName}'s Sequence
                       </Text>
                       <Text className="text-sm text-gray-600 mt-1">
-                        {sequence.period === '1week' ? 'Weekly' :
-                         sequence.period === '2weeks' ? 'Fortnightly' :
-                         sequence.period === '1month' ? 'Monthly' : 'Ongoing'}
+                        {sequence.period === 'weekly' ? 'Weekly' :
+                         sequence.period === 'fortnightly' ? 'Fortnightly' :
+                         sequence.period === 'monthly' ? 'Monthly' : 'Ongoing'}
                         {' • '}
                         {sequence.todaysTasks.length} tasks today
                       </Text>

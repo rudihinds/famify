@@ -2,19 +2,35 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
-import { Check } from 'lucide-react-native';
+import { Check, Calendar, Coins, BarChart3, CheckCircle } from 'lucide-react-native';
 import { Child } from '../../services/childService';
+
+interface ActiveSequenceInfo {
+  id: string;
+  period: 'weekly' | 'fortnightly' | 'monthly';
+  startDate: string;
+  endDate: string | null;
+  budgetCurrency: number;
+  budgetFamcoins: number;
+  status: string;
+  totalTasks: number;
+  completedTasks: number;
+  avgTasksPerDay: number;
+  progress: number;
+}
 
 interface ChildSelectionCardProps {
   child: Child;
   isSelected: boolean;
   onSelect: (childId: string) => void;
+  activeSequence?: ActiveSequenceInfo;
 }
 
 const ChildSelectionCard: React.FC<ChildSelectionCardProps> = ({ 
   child, 
   isSelected, 
-  onSelect 
+  onSelect,
+  activeSequence 
 }) => {
   const animatedStyle = useAnimatedStyle(() => {
     return {
@@ -114,6 +130,70 @@ const ChildSelectionCard: React.FC<ChildSelectionCardProps> = ({
               Balance: {child.famcoin_balance} FAMCOINS
             </Text>
           </View>
+          
+          {/* Active Sequence Section */}
+          {activeSequence && (
+            <View className="mt-3 p-3 bg-blue-50 rounded-lg">
+              <View className="flex-row items-center mb-2">
+                <View className="w-2 h-2 bg-green-500 rounded-full mr-2" />
+                <Text className="text-sm font-semibold text-blue-900">Active Sequence</Text>
+              </View>
+              
+              {/* Period and Start Date */}
+              <View className="flex-row items-center mb-2">
+                <Calendar size={14} color="#4f46e5" />
+                <Text className="text-xs text-gray-700 ml-1">
+                  {activeSequence.period === 'weekly' ? 'Weekly' :
+                   activeSequence.period === 'fortnightly' ? 'Fortnightly' :
+                   activeSequence.period === 'monthly' ? 'Monthly' : 'Ongoing'}
+                  {' • Started '}
+                  {new Date(activeSequence.startDate).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric' 
+                  })}
+                </Text>
+              </View>
+              
+              {/* Budget */}
+              <View className="flex-row items-center mb-2">
+                <Coins size={14} color="#4f46e5" />
+                <Text className="text-xs text-gray-700 ml-1">
+                  £{activeSequence.budgetCurrency} budget ({activeSequence.budgetFamcoins} FC)
+                </Text>
+              </View>
+              
+              <View className="flex-row justify-between">
+                {/* Tasks Info */}
+                <View className="flex-row items-center">
+                  <BarChart3 size={14} color="#4f46e5" />
+                  <Text className="text-xs text-gray-700 ml-1">
+                    {activeSequence.totalTasks} tasks • ~{activeSequence.avgTasksPerDay}/day
+                  </Text>
+                </View>
+                
+                {/* Progress */}
+                <View className="flex-row items-center">
+                  <CheckCircle size={14} color="#10b981" />
+                  <Text className="text-xs text-gray-700 ml-1">
+                    {activeSequence.completedTasks}/{activeSequence.totalTasks}
+                  </Text>
+                </View>
+              </View>
+              
+              {/* Progress Bar */}
+              <View className="mt-2 h-2 bg-blue-100 rounded-full overflow-hidden">
+                <View 
+                  className="h-full bg-blue-500 rounded-full"
+                  style={{ width: `${activeSequence.progress}%` }}
+                />
+              </View>
+              
+              {/* Edit Sequence Text */}
+              <Text className="text-xs text-indigo-600 font-medium mt-2 text-center">
+                Tap to Edit Sequence →
+              </Text>
+            </View>
+          )}
         </View>
       </Animated.View>
     </TouchableOpacity>

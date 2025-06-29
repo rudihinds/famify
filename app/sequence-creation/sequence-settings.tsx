@@ -32,6 +32,10 @@ export default function SequenceSettingsScreen() {
   // Use step 1 validation directly for this screen
   const canAdvance = useSelector((state: RootState) => selectIsStepValid(1)(state));
   const user = useSelector((state: RootState) => state.auth.user);
+  const isEditing = useSelector((state: RootState) => state.sequenceCreation.isEditing);
+  const editingSequenceId = useSelector((state: RootState) => state.sequenceCreation.editingSequenceId);
+  const selectedChildId = useSelector((state: RootState) => state.sequenceCreation.selectedChildId);
+  const currentStep = useSelector((state: RootState) => state.sequenceCreation.currentStep);
   
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [conversionRate, setConversionRate] = useState(10); // Default
@@ -42,8 +46,21 @@ export default function SequenceSettingsScreen() {
   }>({});
 
   useEffect(() => {
+    console.log('[SETTINGS] Component mounted');
+    console.log('[SETTINGS] Redux state on mount:', {
+      sequenceSettings,
+      isEditing,
+      editingSequenceId,
+      selectedChildId,
+      currentStep
+    });
+    
     // Set current step when screen mounts
+    console.log('[SETTINGS] Setting current step to 1');
     dispatch(setCurrentStep(1));
+    
+    // Debug: Check loaded data
+    console.log('[SETTINGS] Current settings after mount:', sequenceSettings);
   }, [dispatch]);
   
   useEffect(() => {

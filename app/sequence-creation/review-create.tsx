@@ -11,6 +11,8 @@ import {
   selectTotalTaskCount,
   selectFamcoinPerTask,
   selectIsLoading,
+  selectIsEditing,
+  selectEditingSequenceId,
   createSequence
 } from '../../store/slices/sequenceCreationSlice';
 import { ChevronLeft, Check, Calendar, Coins, Users, ListTodo } from 'lucide-react-native';
@@ -37,6 +39,8 @@ export default function ReviewCreateScreen() {
   const totalTasks = useSelector(selectTotalTaskCount);
   const famcoinPerTask = useSelector(selectFamcoinPerTask);
   const isLoading = useSelector(selectIsLoading);
+  const isEditing = useSelector(selectIsEditing);
+  const editingSequenceId = useSelector(selectEditingSequenceId);
   const selectedTasksByGroup = useSelector((state: RootState) => state.sequenceCreation.selectedTasksByGroup);
   const user = useSelector((state: RootState) => state.auth.user);
 
@@ -85,15 +89,15 @@ export default function ReviewCreateScreen() {
     if (isLoading) return;
     
     Alert.alert(
-      'Create Sequence',
-      'Are you ready to create this sequence? You can still make changes after creation.',
+      isEditing ? 'Update Sequence' : 'Create Sequence',
+      isEditing ? 'Are you ready to update this sequence?' : 'Are you ready to create this sequence? You can still make changes after creation.',
       [
         {
           text: 'Cancel',
           style: 'cancel'
         },
         {
-          text: 'Create',
+          text: isEditing ? 'Update' : 'Create',
           style: 'default',
           onPress: async () => {
             const result = await dispatch(createSequence());
@@ -134,7 +138,9 @@ export default function ReviewCreateScreen() {
         <View className="flex-1 bg-black/50 items-center justify-center">
           <View className="bg-white rounded-xl p-8 items-center">
             <ActivityIndicator size="large" color="#6366f1" />
-            <Text className="mt-4 text-gray-700 font-medium">Creating sequence...</Text>
+            <Text className="mt-4 text-gray-700 font-medium">
+              {isEditing ? 'Updating sequence...' : 'Creating sequence...'}
+            </Text>
             <Text className="mt-2 text-sm text-gray-500">This may take a moment</Text>
           </View>
         </View>
@@ -155,7 +161,7 @@ export default function ReviewCreateScreen() {
           Review Sequence
         </Text>
         <Text className="text-gray-600 mb-6">
-          Confirm all details before creating
+          {isEditing ? 'Confirm all details before updating' : 'Confirm all details before creating'}
         </Text>
 
         {/* Child Info Card */}
@@ -404,7 +410,7 @@ export default function ReviewCreateScreen() {
               <>
                 <Check size={20} color="#ffffff" />
                 <Text className="font-semibold ml-2 text-white">
-                  Create Sequence
+                  {isEditing ? 'Update Sequence' : 'Create Sequence'}
                 </Text>
               </>
             )}
