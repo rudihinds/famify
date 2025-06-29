@@ -14,13 +14,13 @@ import { ChevronRight } from 'lucide-react-native';
 import { childService, Child } from '../../services/childService';
 import ChildSelectionCard from '../../components/sequence-creation/ChildSelectionCard';
 import { StateContainer, LoadingState } from '../../components/common/StateDisplays';
-import { useNavigationSafety } from '../../hooks/useNavigationSafety';
+import { useRouter } from 'expo-router';
 import { useGetActiveSequencesByChildrenQuery } from '../../store/api/sequenceApi';
 import * as Haptics from 'expo-haptics';
 
 export default function SelectChildScreen() {
   const dispatch = useDispatch<AppDispatch>();
-  const { navigate, isNavigationReady } = useNavigationSafety();
+  const router = useRouter();
   const selectedChildId = useSelector(selectSelectedChild);
   // Use step 0 validation directly instead of relying on currentStep
   const canAdvance = useSelector((state: RootState) => selectIsStepValid(0)(state));
@@ -101,7 +101,7 @@ export default function SelectChildScreen() {
                 await dispatch(fetchSequenceForEditing(sequence.id)).unwrap();
                 
                 // Navigate to settings screen
-                navigate('/sequence-creation/sequence-settings');
+                router.push('/sequence-creation/sequence-settings');
               } catch (error) {
                 console.error('Error loading sequence for editing:', error);
                 Alert.alert(
@@ -125,13 +125,13 @@ export default function SelectChildScreen() {
     if (Platform.OS !== 'web') {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-  }, [activeSequences, children, dispatch, navigate]);
+  }, [activeSequences, children, dispatch, router]);
 
   const handleNext = useCallback(() => {
     if (canAdvance) {
-      navigate('/sequence-creation/sequence-settings');
+      router.push('/sequence-creation/sequence-settings');
     }
-  }, [canAdvance, navigate]);
+  }, [canAdvance, router]);
 
 
   return (

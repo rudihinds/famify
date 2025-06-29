@@ -13,11 +13,11 @@ import {
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import GroupCard from '../../components/sequence-creation/GroupCard';
 import GroupEditModal from '../../components/sequence-creation/GroupEditModal';
-import { useNavigationSafety } from '../../hooks/useNavigationSafety';
+import { useRouter } from 'expo-router';
 
 export default function GroupsSetupScreen() {
   const dispatch = useDispatch<AppDispatch>();
-  const { navigate, goBack } = useNavigationSafety();
+  const router = useRouter();
   const groups = useSelector(selectGroups);
   const canAdvance = useSelector((state: RootState) => selectIsStepValid(2)(state));
   const selectedTasksByGroup = useSelector((state: RootState) => state.sequenceCreation.selectedTasksByGroup);
@@ -33,13 +33,13 @@ export default function GroupsSetupScreen() {
   const handleNext = useCallback(() => {
     if (canAdvance && groups.length > 0) {
       // Navigate to first group's task selection
-      navigate(`/sequence-creation/add-tasks/${groups[0].id}?groupIndex=0&totalGroups=${groups.length}`);
+      router.push(`/sequence-creation/add-tasks/${groups[0].id}?groupIndex=0&totalGroups=${groups.length}`);
     }
-  }, [canAdvance, groups, navigate]);
+  }, [canAdvance, groups, router]);
 
   const handleBack = useCallback(() => {
-    goBack();
-  }, [goBack]);
+    router.back();
+  }, [router]);
 
   const handleAddGroup = useCallback(() => {
     setEditingGroup(undefined);

@@ -16,12 +16,12 @@ import TaskSearchBar from '../../../components/sequence-creation/TaskSearchBar';
 import CategorySection from '../../../components/sequence-creation/CategorySection';
 import { taskService } from '../../../services/taskService';
 import { TaskCategory, TaskTemplate } from '../../../types/task';
-import { useNavigationSafety } from '../../../hooks/useNavigationSafety';
+import { useRouter } from 'expo-router';
 import { errorHandler, withErrorHandling } from '../../../services/errorService';
 
 export default function AddTasksScreen() {
   const dispatch = useDispatch<AppDispatch>();
-  const { navigate, goBack } = useNavigationSafety();
+  const router = useRouter();
   const { groupId, groupIndex, totalGroups } = useLocalSearchParams<{
     groupId: string;
     groupIndex: string;
@@ -100,7 +100,7 @@ export default function AddTasksScreen() {
     return grouped;
   }, [categories, filteredTemplates]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (selectedTaskIds.length > 0) {
       if (isLastGroup) {
         // Go to review screen
@@ -114,17 +114,12 @@ export default function AddTasksScreen() {
         }
       }
     }
-  };
+  }, [selectedTaskIds, isLastGroup, currentGroupIndex, groups, totalGroupsCount, router]);
 
   const handleBack = useCallback(() => {
-    if (currentGroupIndex === 0) {
-      // Go back to groups setup
-      navigate('/sequence-creation/groups-setup');
-    } else {
-      // Go to previous group
-      goBack();
-    }
-  }, [currentGroupIndex, navigate, goBack]);
+    // Always use router.back() to maintain proper navigation stack
+    router.back();
+  }, [router]);
 
   const handleTaskToggle = useCallback((taskId: string) => {
     if (selectedTaskIds.includes(taskId)) {

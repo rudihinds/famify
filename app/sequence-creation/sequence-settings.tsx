@@ -22,12 +22,12 @@ import { supabase } from '../../lib/supabase';
 import PeriodSelector from '../../components/sequence-creation/PeriodSelector';
 import BudgetInput from '../../components/sequence-creation/BudgetInput';
 import DatePicker from '../../components/common/DatePicker';
-import { useNavigationSafety } from '../../hooks/useNavigationSafety';
+import { useRouter } from 'expo-router';
 import { errorHandler, withErrorHandling } from '../../services/errorService';
 
 export default function SequenceSettingsScreen() {
   const dispatch = useDispatch<AppDispatch>();
-  const { navigate, goBack } = useNavigationSafety();
+  const router = useRouter();
   const sequenceSettings = useSelector(selectSequenceSettings);
   // Use step 1 validation directly for this screen
   const canAdvance = useSelector((state: RootState) => selectIsStepValid(1)(state));
@@ -88,13 +88,13 @@ export default function SequenceSettingsScreen() {
 
   const handleNext = useCallback(() => {
     if (validateForm() && canAdvance) {
-      navigate('/sequence-creation/groups-setup');
+      router.push('/sequence-creation/groups-setup');
     }
-  }, [canAdvance, navigate, validateForm]);
+  }, [canAdvance, router, validateForm]);
 
   const handleBack = useCallback(() => {
-    goBack();
-  }, [goBack]);
+    router.back();
+  }, [router]);
   
   const getPeriodDays = useCallback(() => {
     switch (sequenceSettings.period) {

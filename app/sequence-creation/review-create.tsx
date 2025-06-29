@@ -11,7 +11,6 @@ import {
   selectFamcoinPerTask,
   selectIsLoading,
   selectIsEditing,
-  selectEditingSequenceId,
   createSequence
 } from '../../store/slices/sequenceCreationSlice';
 import { ChevronLeft, Check, Calendar, Coins, Users, ListTodo } from 'lucide-react-native';
@@ -19,12 +18,11 @@ import ChildInfoCard from '../../components/sequence-creation/ChildInfoCard';
 import ExpandableGroupSection from '../../components/sequence-creation/ExpandableGroupSection';
 import SequenceCreationSuccess from '../../components/sequence-creation/SequenceCreationSuccess';
 import { childService } from '../../services/childService';
-import { useNavigationSafety } from '../../hooks/useNavigationSafety';
-import { errorHandler, withErrorHandling } from '../../services/errorService';
+import { useRouter } from 'expo-router';
 
 export default function ReviewCreateScreen() {
   const dispatch = useDispatch<AppDispatch>();
-  const { navigate, goBack } = useNavigationSafety();
+  const router = useRouter();
   
   const selectedChildId = useSelector(selectSelectedChild);
   const sequenceSettings = useSelector(selectSequenceSettings);
@@ -33,7 +31,6 @@ export default function ReviewCreateScreen() {
   const famcoinPerTask = useSelector(selectFamcoinPerTask);
   const isLoading = useSelector(selectIsLoading);
   const isEditing = useSelector(selectIsEditing);
-  const editingSequenceId = useSelector(selectEditingSequenceId);
   const selectedTasksByGroup = useSelector((state: RootState) => state.sequenceCreation.selectedTasksByGroup);
   const user = useSelector((state: RootState) => state.auth.user);
 
@@ -41,13 +38,21 @@ export default function ReviewCreateScreen() {
   const [childData, setChildData] = useState<any>(null);
   const [isLoadingChild, setIsLoadingChild] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [shouldNavigate, setShouldNavigate] = useState(false);
 
   useEffect(() => {
     // Set current step when screen mounts
     dispatch(setCurrentStep(4));
-    
-    // Debug logging
   }, [dispatch]);
+
+  // Handle navigation after success
+  useEffect(() => {
+    if (shouldNavigate) {
+      // Just navigate - don't reset state here
+      // State will be reset when starting a new sequence
+      router.replace('/(parent)/tasks');
+    }
+  }, [shouldNavigate, router]);
 
   // Fetch child details
   useEffect(() => {
@@ -107,12 +112,12 @@ export default function ReviewCreateScreen() {
   }, [isLoading, isEditing, dispatch]);
 
   const handleBack = useCallback(() => {
-    goBack();
-  }, [goBack]);
+    router.back();
+  }, [router]);
 
   const handleEdit = useCallback((step: string) => {
-    navigate(`/sequence-creation/${step}` as any);
-  }, [navigate]);
+    router.push(`/sequence-creation/${step}` as any);
+  }, [router]);
 
   return (
     <View className="flex-1 bg-gray-100">
@@ -122,10 +127,10 @@ export default function ReviewCreateScreen() {
         transparent={true}
         animationType="fade"
       >
-        <View className="flex-1 bg-black/50 items-center justify-center">
-          <View className="bg-white rounded-xl p-8 items-center">
+        <View className="flex-1 justify-center items-center bg-black/50">
+          <View className="items-center p-8 bg-white rounded-xl">
             <ActivityIndicator size="large" color="#6366f1" />
-            <Text className="mt-4 text-gray-700 font-medium">
+            <Text className="mt-4 font-medium text-gray-700">
               {isEditing ? 'Updating sequence...' : 'Creating sequence...'}
             </Text>
             <Text className="mt-2 text-sm text-gray-500">This may take a moment</Text>
@@ -135,31 +140,31 @@ export default function ReviewCreateScreen() {
       <ScrollView className="flex-1 px-4 pt-6">
         {/* Progress Indicator */}
         <View className="mb-6">
-          <View className="flex-row items-center justify-between mb-2">
+          <View className="flex-row justify-between items-center mb-2">
             <Text className="text-sm text-gray-600">Step 5 of 5</Text>
             <Text className="text-sm font-medium text-indigo-600">Review & Create</Text>
           </View>
-          <View className="h-2 bg-gray-200 rounded-full overflow-hidden">
+          <View className="overflow-hidden h-2 bg-gray-200 rounded-full">
             <View className="h-full bg-indigo-600 rounded-full" style={{ width: '100%' }} />
           </View>
         </View>
 
-        <Text className="text-2xl font-bold text-gray-900 mb-2">
+        <Text className="mb-2 text-2xl font-bold text-gray-900">
           Review Sequence
         </Text>
-        <Text className="text-gray-600 mb-6">
+        <Text className="mb-6 text-gray-600">
           {isEditing ? 'Confirm all details before updating' : 'Confirm all details before creating'}
         </Text>
 
         {/* Child Info Card */}
-        <View className="bg-white rounded-xl p-6 shadow-sm mb-4">
+        <View className="p-6 mb-4 bg-white rounded-xl shadow-sm">
           <View className="flex-row justify-between items-start mb-4">
             <View className="flex-row items-center">
               <Users size={20} color="#6366f1" />
-              <Text className="font-semibold text-gray-900 ml-2">Selected Child</Text>
+              <Text className="ml-2 font-semibold text-gray-900">Selected Child</Text>
             </View>
             <TouchableOpacity onPress={() => handleEdit('select-child')}>
-              <Text className="text-indigo-600 text-sm">Edit</Text>
+              <Text className="text-sm text-indigo-600">Edit</Text>
             </TouchableOpacity>
           </View>
           {isLoadingChild ? (
@@ -171,20 +176,20 @@ export default function ReviewCreateScreen() {
           )}
         </View>
 
-        <View className="bg-white rounded-xl p-6 shadow-sm mb-4">
+        <View className="p-6 mb-4 bg-white rounded-xl shadow-sm">
           <View className="flex-row justify-between items-start mb-4">
             <View className="flex-row items-center">
               <Calendar size={20} color="#6366f1" />
-              <Text className="font-semibold text-gray-900 ml-2">Sequence Settings</Text>
+              <Text className="ml-2 font-semibold text-gray-900">Sequence Settings</Text>
             </View>
             <TouchableOpacity onPress={() => handleEdit('sequence-settings')}>
-              <Text className="text-indigo-600 text-sm">Edit</Text>
+              <Text className="text-sm text-indigo-600">Edit</Text>
             </TouchableOpacity>
           </View>
           
           {/* Period & Dates */}
           <View className="mb-3">
-            <Text className="text-sm text-gray-500 mb-1">Duration</Text>
+            <Text className="mb-1 text-sm text-gray-500">Duration</Text>
             <Text className="text-base text-gray-900">
               {sequenceSettings.period === 'weekly' ? '1 Week' : 
                sequenceSettings.period === 'fortnightly' ? '2 Weeks' : 
@@ -194,7 +199,7 @@ export default function ReviewCreateScreen() {
           </View>
           
           <View className="mb-3">
-            <Text className="text-sm text-gray-500 mb-1">Start Date</Text>
+            <Text className="mb-1 text-sm text-gray-500">Start Date</Text>
             <Text className="text-base text-gray-900">
               {sequenceSettings.startDate ? 
                 new Date(sequenceSettings.startDate).toLocaleDateString('en-US', {
@@ -208,7 +213,7 @@ export default function ReviewCreateScreen() {
           
           {sequenceSettings.period && sequenceSettings.startDate && (
             <View className="mb-3">
-              <Text className="text-sm text-gray-500 mb-1">End Date</Text>
+              <Text className="mb-1 text-sm text-gray-500">End Date</Text>
               <Text className="text-base text-gray-900">
                 {(() => {
                   const startDate = new Date(sequenceSettings.startDate);
@@ -247,8 +252,8 @@ export default function ReviewCreateScreen() {
           )}
           
           {/* Budget */}
-          <View className="mt-4 pt-4 border-t border-gray-100">
-            <Text className="text-sm text-gray-500 mb-2">Budget</Text>
+          <View className="pt-4 mt-4 border-t border-gray-100">
+            <Text className="mb-2 text-sm text-gray-500">Budget</Text>
             <View className="flex-row items-baseline">
               <Text className="text-2xl font-bold text-gray-900">
                 {sequenceSettings.currencyCode === 'GBP' ? '£' : 
@@ -256,7 +261,7 @@ export default function ReviewCreateScreen() {
                  sequenceSettings.currencyCode === 'EUR' ? '€' : ''}
                 {sequenceSettings.budget}
               </Text>
-              <Text className="text-lg text-gray-500 ml-3">
+              <Text className="ml-3 text-lg text-gray-500">
                 = {sequenceSettings.budgetFamcoins} FAMCOINS
               </Text>
             </View>
@@ -265,40 +270,44 @@ export default function ReviewCreateScreen() {
 
         {/* Groups Summary */}
         <View className="mb-4">
-          <View className="flex-row items-center mb-3">
-            <ListTodo size={20} color="#6366f1" />
-            <Text className="font-semibold text-gray-900 ml-2">Groups & Tasks</Text>
+          <View className="flex-row justify-between items-center mb-3">
+            <View className="flex-row items-center">
+              <ListTodo size={20} color="#6366f1" />
+              <Text className="ml-2 font-semibold text-gray-900">Groups & Tasks</Text>
+            </View>
+            <TouchableOpacity onPress={() => handleEdit('groups-setup')}>
+              <Text className="text-sm text-indigo-600">Edit</Text>
+            </TouchableOpacity>
           </View>
-          {groups.map((group, index) => (
+          {groups.map((group) => (
             <ExpandableGroupSection
               key={group.id}
               group={group}
               selectedTaskIds={selectedTasksByGroup[group.id] || []}
-              onEdit={() => navigate(`/sequence-creation/add-tasks/${group.id}?groupIndex=${index}&totalGroups=${groups.length}`)}
             />
           ))}
         </View>
 
 
         {/* FAMCOIN Distribution */}
-        <View className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 mb-6">
+        <View className="p-6 mb-6 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl">
           <View className="flex-row items-center mb-4">
             <Coins size={20} color="#4f46e5" />
-            <Text className="font-semibold text-indigo-900 ml-2">
+            <Text className="ml-2 font-semibold text-indigo-900">
               FAMCOIN Distribution
             </Text>
           </View>
           
           {/* Budget Breakdown */}
-          <View className="bg-white/70 rounded-lg p-4 mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-2">Budget Breakdown</Text>
+          <View className="p-4 mb-4 rounded-lg bg-white/70">
+            <Text className="mb-2 text-sm font-medium text-gray-700">Budget Breakdown</Text>
             <View className="flex-row items-baseline mb-1">
               <Text className="text-2xl font-bold text-indigo-900">
                 {sequenceSettings.budgetFamcoins}
               </Text>
-              <Text className="text-sm text-indigo-700 ml-2">Total FAMCOINS</Text>
+              <Text className="ml-2 text-sm text-indigo-700">Total FAMCOINS</Text>
             </View>
-            <Text className="text-sm text-gray-600 mt-1">
+            <Text className="mt-1 text-sm text-gray-600">
               From {sequenceSettings.currencyCode === 'GBP' ? '£' : 
                     sequenceSettings.currencyCode === 'USD' ? '$' : 
                     sequenceSettings.currencyCode === 'EUR' ? '€' : ''}
@@ -307,8 +316,8 @@ export default function ReviewCreateScreen() {
           </View>
           
           {/* Task Distribution */}
-          <View className="bg-white/70 rounded-lg p-4">
-            <Text className="text-sm font-medium text-gray-700 mb-2">Task Distribution</Text>
+          <View className="p-4 rounded-lg bg-white/70">
+            <Text className="mb-2 text-sm font-medium text-gray-700">Task Distribution</Text>
             
             <View className="mb-3">
               <View className="flex-row justify-between mb-1">
@@ -325,9 +334,6 @@ export default function ReviewCreateScreen() {
               {(() => {
                 if (!sequenceSettings.period) return null;
                 
-                const weeks = sequenceSettings.period === 'weekly' ? 1 : 
-                             sequenceSettings.period === 'fortnightly' ? 2 : 
-                             sequenceSettings.period === 'monthly' ? 4.34 : 1;
                 
                 // Calculate total tasks per active day
                 // First, get the total number of tasks assigned per week
@@ -364,7 +370,7 @@ export default function ReviewCreateScreen() {
               })()}
             </View>
             
-            <View className="mt-3 pt-3 border-t border-gray-200">
+            <View className="pt-3 mt-3 border-t border-gray-200">
               <Text className="text-xs text-gray-500">
                 💡 Tip: Add bonus tasks to allow children to earn extra FAMCOINS
               </Text>
@@ -374,14 +380,14 @@ export default function ReviewCreateScreen() {
       </ScrollView>
 
       {/* Create Button */}
-      <View className="px-4 pb-6 pt-4 bg-white border-t border-gray-200">
+      <View className="px-4 pt-4 pb-6 bg-white border-t border-gray-200">
         <View className="flex-row space-x-3">
           <TouchableOpacity
             onPress={handleBack}
-            className="flex-1 flex-row items-center justify-center py-4 px-6 rounded-xl border border-gray-300"
+            className="flex-row flex-1 justify-center items-center px-6 py-4 rounded-xl border border-gray-300"
           >
             <ChevronLeft size={20} color="#6b7280" />
-            <Text className="font-semibold ml-2 text-gray-700">
+            <Text className="ml-2 font-semibold text-gray-700">
               Back
             </Text>
           </TouchableOpacity>
@@ -389,14 +395,14 @@ export default function ReviewCreateScreen() {
           <TouchableOpacity
             onPress={handleCreate}
             disabled={isLoading}
-            className="flex-1 flex-row items-center justify-center py-4 px-6 rounded-xl bg-green-600"
+            className="flex-row flex-1 justify-center items-center px-6 py-4 bg-green-600 rounded-xl"
           >
             {isLoading ? (
               <ActivityIndicator color="white" />
             ) : (
               <>
                 <Check size={20} color="#ffffff" />
-                <Text className="font-semibold ml-2 text-white">
+                <Text className="ml-2 font-semibold text-white">
                   {isEditing ? 'Update Sequence' : 'Create Sequence'}
                 </Text>
               </>
@@ -409,9 +415,10 @@ export default function ReviewCreateScreen() {
       <SequenceCreationSuccess
         visible={showSuccess}
         childName={childData?.name || 'your child'}
+        isEditing={isEditing}
         onComplete={() => {
-          // Navigate to tasks tab
-          navigate('/(parent)/tasks', { replace: true });
+          // Set flag to trigger navigation in useEffect
+          setShouldNavigate(true);
         }}
       />
     </View>

@@ -16,6 +16,9 @@ interface NavigationSafetyOptions {
 /**
  * Hook to safely navigate with navigation context checks
  * Prevents navigation context errors and optionally confirms navigation
+ * 
+ * IMPORTANT: This hook should only be used inside components that are
+ * guaranteed to have navigation context (i.e., inside the navigation stack)
  */
 export function useNavigationSafety(options: NavigationSafetyOptions = {}) {
   const {
@@ -23,7 +26,8 @@ export function useNavigationSafety(options: NavigationSafetyOptions = {}) {
     canNavigate = true,
   } = options;
 
-  // Always call useRouter - no conditional hooks
+  // This will throw if navigation context is not available
+  // The error should be caught by the component using this hook
   const router = useRouter();
 
   /**
@@ -116,3 +120,4 @@ export function useNavigationSafety(options: NavigationSafetyOptions = {}) {
     isNavigationReady,
   };
 }
+
