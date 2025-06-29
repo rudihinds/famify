@@ -1,17 +1,16 @@
 import React, { useLayoutEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useSegments } from 'expo-router';
 import SequenceCreationHeader from '../../components/sequence-creation/SequenceCreationHeader';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { selectIsStepValid, selectIsEditing } from '../../store/slices/sequenceCreationSlice';
-import { useRouter, useSegments } from 'expo-router';
+import { useNavigationSafety } from '../../hooks/useNavigationSafety';
 
 export default function SequenceCreationLayout() {
-  let router;
+  const { goBack, isNavigationReady } = useNavigationSafety();
   let segments;
   
   try {
-    router = useRouter();
     segments = useSegments();
   } catch (error) {
     // Navigation context not ready
@@ -20,7 +19,7 @@ export default function SequenceCreationLayout() {
   }
   
   // Ensure navigation is ready
-  if (!router || !segments) {
+  if (!isNavigationReady() || !segments) {
     return null;
   }
   
@@ -63,9 +62,9 @@ export default function SequenceCreationLayout() {
     
     if (targetStep > 0 && !canNavigate) {
       // Navigate back if trying to skip steps
-      router.back();
+      goBack();
     }
-  }, [segments, step0Valid, step1Valid, step2Valid, step3Valid, router, isEditing]);
+  }, [segments, step0Valid, step1Valid, step2Valid, step3Valid, goBack, isEditing]);
 
   return (
     <Stack
