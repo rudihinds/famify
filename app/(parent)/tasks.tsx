@@ -52,10 +52,7 @@ export default function TasksScreen() {
   };
   
   const handleCreateSequence = () => {
-    console.log('[TASKS] Create Sequence button clicked');
-    console.log('[TASKS] About to reset wizard');
     dispatch(resetWizard()); // Clear any previous state
-    console.log('[TASKS] Wizard reset complete, navigating to select-child');
     router.push('/sequence-creation/select-child');
   };
   

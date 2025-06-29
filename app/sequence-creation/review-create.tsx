@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Modal } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { 
@@ -20,18 +19,12 @@ import ChildInfoCard from '../../components/sequence-creation/ChildInfoCard';
 import ExpandableGroupSection from '../../components/sequence-creation/ExpandableGroupSection';
 import SequenceCreationSuccess from '../../components/sequence-creation/SequenceCreationSuccess';
 import { childService } from '../../services/childService';
+import { useNavigationSafety } from '../../hooks/useNavigationSafety';
+import { errorHandler, withErrorHandling } from '../../services/errorService';
 
 export default function ReviewCreateScreen() {
-  // Safely get router
-  let router;
-  try {
-    router = useRouter();
-  } catch (error) {
-    // Navigation not ready yet
-    return null;
-  }
-  
   const dispatch = useDispatch<AppDispatch>();
+  const { navigate, goBack } = useNavigationSafety();
   
   const selectedChildId = useSelector(selectSelectedChild);
   const sequenceSettings = useSelector(selectSequenceSettings);
@@ -84,7 +77,7 @@ export default function ReviewCreateScreen() {
     fetchChildData();
   }, [selectedChildId, user?.id]);
 
-  const handleCreate = async () => {
+  const handleCreate = useCallback(async () => {
     // Prevent double-creation
     if (isLoading) return;
     
@@ -117,15 +110,15 @@ export default function ReviewCreateScreen() {
         }
       ]
     );
-  };
+  }, [isLoading, isEditing, dispatch]);
 
-  const handleBack = () => {
-    router.back();
-  };
+  const handleBack = useCallback(() => {
+    goBack();
+  }, [goBack]);
 
-  const handleEdit = (step: string) => {
-    router.push(`/sequence-creation/${step}` as any);
-  };
+  const handleEdit = useCallback((step: string) => {
+    navigate(`/sequence-creation/${step}` as any);
+  }, [navigate]);
 
   return (
     <View className="flex-1 bg-gray-100">
@@ -287,7 +280,7 @@ export default function ReviewCreateScreen() {
               key={group.id}
               group={group}
               selectedTaskIds={selectedTasksByGroup[group.id] || []}
-              onEdit={() => router.push(`/sequence-creation/add-tasks/${group.id}?groupIndex=${index}&totalGroups=${groups.length}`)}
+              onEdit={() => navigate(`/sequence-creation/add-tasks/${group.id}?groupIndex=${index}&totalGroups=${groups.length}`)}
             />
           ))}
         </View>
@@ -424,7 +417,7 @@ export default function ReviewCreateScreen() {
         childName={childData?.name || 'your child'}
         onComplete={() => {
           // Navigate to tasks tab
-          router.replace('/(parent)/tasks');
+          navigate('/(parent)/tasks', { replace: true });
         }}
       />
     </View>

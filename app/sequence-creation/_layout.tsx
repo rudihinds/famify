@@ -37,19 +37,9 @@ export default function SequenceCreationLayout() {
     if (segments.length < 2) return;
     
     const currentRoute = segments[segments.length - 1];
-    console.log('[LAYOUT] Navigation guard running for route:', currentRoute);
-    console.log('[LAYOUT] Current state:', {
-      isEditing,
-      step0Valid,
-      step1Valid,
-      step2Valid,
-      step3Valid,
-      segments: segments.join('/')
-    });
     
     // Skip navigation guards when editing - all data is loaded at once
     if (isEditing) {
-      console.log('[LAYOUT] Skipping navigation guard - in editing mode');
       return;
     }
     
@@ -63,33 +53,17 @@ export default function SequenceCreationLayout() {
 
     // Check if trying to navigate to a route that requires previous steps
     const targetStep = routeToStepMap[currentRoute];
-    console.log('[LAYOUT] Target step:', targetStep);
     
     // Check if all previous steps are valid
     let canNavigate = true;
-    if (targetStep >= 1 && !step0Valid) {
-      canNavigate = false;
-      console.log('[LAYOUT] Cannot navigate - step 0 not valid');
-    }
-    if (targetStep >= 2 && !step1Valid) {
-      canNavigate = false;
-      console.log('[LAYOUT] Cannot navigate - step 1 not valid');
-    }
-    if (targetStep >= 3 && !step2Valid) {
-      canNavigate = false;
-      console.log('[LAYOUT] Cannot navigate - step 2 not valid');
-    }
-    if (targetStep >= 4 && !step3Valid) {
-      canNavigate = false;
-      console.log('[LAYOUT] Cannot navigate - step 3 not valid');
-    }
+    if (targetStep >= 1 && !step0Valid) canNavigate = false;
+    if (targetStep >= 2 && !step1Valid) canNavigate = false;
+    if (targetStep >= 3 && !step2Valid) canNavigate = false;
+    if (targetStep >= 4 && !step3Valid) canNavigate = false;
     
     if (targetStep > 0 && !canNavigate) {
       // Navigate back if trying to skip steps
-      console.log(`[LAYOUT] Navigation blocked: Cannot navigate to step ${targetStep} without completing previous steps`);
       router.back();
-    } else {
-      console.log('[LAYOUT] Navigation allowed');
     }
   }, [segments, step0Valid, step1Valid, step2Valid, step3Valid, router, isEditing]);
 
