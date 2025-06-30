@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Alert } from 'react-native';
-import { X } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { selectCurrentStep, selectTotalTaskCount, resetWizard } from '../../store/slices/sequenceCreationSlice';
@@ -37,8 +37,8 @@ const SequenceCreationHeader: React.FC<SequenceCreationHeaderProps> = ({ onCance
               if (onCancel) {
                 onCancel();
               } else {
-                // Navigate back to parent dashboard, exiting the modal
-                navigate('/parent/dashboard', { replace: true });
+                // Navigate back to parent dashboard
+                router.replace('/parent/dashboard');
               }
             },
           },
@@ -56,16 +56,16 @@ const SequenceCreationHeader: React.FC<SequenceCreationHeaderProps> = ({ onCance
   };
 
   return (
-    <View className="bg-white border-b border-gray-200">
+    <SafeAreaView edges={['top']} className="bg-white border-b border-gray-200">
       {/* Header Row */}
-      <View className="flex-row items-center justify-between px-4 pt-2 pb-3">
+      <View className="flex-row items-center justify-between px-4 pb-3">
         <TouchableOpacity
           onPress={handleCancel}
-          className="p-2 -ml-2"
+          className="p-2"
           accessibilityLabel="Cancel sequence creation"
           accessibilityHint="Exits sequence creation and returns to tasks screen"
         >
-          <X size={24} color="#6b7280" />
+          <Text className="text-base text-indigo-600">Cancel</Text>
         </TouchableOpacity>
         
         <Text className="text-lg font-semibold text-gray-900">
@@ -100,7 +100,7 @@ const SequenceCreationHeader: React.FC<SequenceCreationHeaderProps> = ({ onCance
           </View>
         ))}
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 

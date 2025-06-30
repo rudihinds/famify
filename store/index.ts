@@ -80,7 +80,7 @@ const persistConfig = {
 const sequenceCreationPersistConfig = {
   key: "sequenceCreation",
   storage,
-  whitelist: ["selectedChildId", "sequenceSettings", "groups", "selectedTasksByGroup", "currentStep"],
+  whitelist: ["selectedChildId", "sequenceSettings", "groups", "selectedTasksByGroup", "currentStep", "isEditing", "editingSequenceId"],
   // Don't persist loading/error states
   blacklist: ["isLoading", "error", "validationErrors"],
 };

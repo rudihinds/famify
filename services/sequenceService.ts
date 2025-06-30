@@ -28,6 +28,39 @@ interface TaskInstance {
 
 class SequenceService {
   /**
+   * Retry an operation with exponential backoff
+   * @param operation The async operation to retry
+   * @param maxRetries Maximum number of retry attempts
+   * @param initialDelay Initial delay in milliseconds
+   */
+  private async retryWithBackoff<T>(
+    operation: () => Promise<T>,
+    maxRetries = 3,
+    initialDelay = 1000
+  ): Promise<T> {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await operation();
+      } catch (error: any) {
+        const isLastAttempt = i === maxRetries - 1;
+        const isNetworkError = 
+          error.message?.includes('Network request failed') ||
+          error.message?.includes('NetworkError') ||
+          error.code === 'NETWORK_ERROR';
+        
+        if (isLastAttempt || !isNetworkError) {
+          throw error;
+        }
+        
+        const delay = initialDelay * Math.pow(2, i); // Exponential backoff
+        console.log(`[SEQUENCE SERVICE] Network error, retry attempt ${i + 1}/${maxRetries} after ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    throw new Error('Max retries exceeded');
+  }
+
+  /**
    * Map period values from Redux to database
    */
   private mapPeriodToType(period: string): string {
@@ -243,10 +276,12 @@ class SequenceService {
         });
       });
 
-      const { data: createdInstances, error: instancesError } = await supabase
-        .from('task_instances')
-        .insert(taskInstances)
-        .select();
+      const { data: createdInstances, error: instancesError } = await this.retryWithBackoff(() =>
+        supabase
+          .from('task_instances')
+          .insert(taskInstances)
+          .select()
+      );
 
       if (instancesError) {
         console.error('Error creating task instances:', instancesError);
@@ -282,13 +317,48 @@ class SequenceService {
       });
 
       if (completions.length > 0) {
-        const { error: completionsError } = await supabase
-          .from('task_completions')
-          .insert(completions);
+        console.log(`[SEQUENCE SERVICE] Creating ${completions.length} task completions`);
+        
+        // Batch large inserts to avoid rate limits
+        const BATCH_SIZE = 50;
+        if (completions.length > BATCH_SIZE) {
+          const batches = [];
+          for (let i = 0; i < completions.length; i += BATCH_SIZE) {
+            batches.push(completions.slice(i, i + BATCH_SIZE));
+          }
+          
+          console.log(`[SEQUENCE SERVICE] Splitting into ${batches.length} batches of up to ${BATCH_SIZE} records`);
+          
+          for (let i = 0; i < batches.length; i++) {
+            const batch = batches[i];
+            const { error: completionsError } = await this.retryWithBackoff(() =>
+              supabase
+                .from('task_completions')
+                .insert(batch)
+            );
 
-        if (completionsError) {
-          console.error('Error creating task completions:', completionsError);
-          throw new Error(completionsError.message);
+            if (completionsError) {
+              console.error(`Error creating task completions batch ${i + 1}/${batches.length}:`, completionsError);
+              throw new Error(completionsError.message);
+            }
+            
+            // Add small delay between batches to avoid rate limits
+            if (i < batches.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+          }
+        } else {
+          // Single insert for small amounts
+          const { error: completionsError } = await this.retryWithBackoff(() =>
+            supabase
+              .from('task_completions')
+              .insert(completions)
+          );
+
+          if (completionsError) {
+            console.error('Error creating task completions:', completionsError);
+            throw new Error(completionsError.message);
+          }
         }
       }
 
@@ -408,17 +478,19 @@ class SequenceService {
       const sequenceType = this.mapPeriodToType(input.period);
       const endDate = this.calculateEndDate(input.startDate, input.period);
       
-      const { error: sequenceError } = await supabase
-        .from('sequences')
-        .update({
-          type: sequenceType,
-          start_date: input.startDate,
-          end_date: endDate,
-          budget_currency: input.budget,
-          budget_famcoins: input.budgetFamcoins,
-          currency_code: input.currencyCode,
-        })
-        .eq('id', sequenceId);
+      const { error: sequenceError } = await this.retryWithBackoff(() =>
+        supabase
+          .from('sequences')
+          .update({
+            type: sequenceType,
+            start_date: input.startDate,
+            end_date: endDate,
+            budget_currency: input.budget,
+            budget_famcoins: input.budgetFamcoins,
+            currency_code: input.currencyCode,
+          })
+          .eq('id', sequenceId)
+      );
 
       if (sequenceError) {
         console.error('Error updating sequence:', sequenceError);
@@ -427,10 +499,12 @@ class SequenceService {
 
       // 2. Delete existing groups, task instances, and completions
       // This will cascade delete related task_instances and task_completions
-      const { error: deleteGroupsError } = await supabase
-        .from('groups')
-        .delete()
-        .eq('sequence_id', sequenceId);
+      const { error: deleteGroupsError } = await this.retryWithBackoff(() =>
+        supabase
+          .from('groups')
+          .delete()
+          .eq('sequence_id', sequenceId)
+      );
 
       if (deleteGroupsError) {
         console.error('Error deleting existing groups:', deleteGroupsError);
@@ -444,10 +518,12 @@ class SequenceService {
         active_days: group.activeDays,
       }));
 
-      const { data: createdGroups, error: groupsError } = await supabase
-        .from('groups')
-        .insert(groupsToInsert)
-        .select();
+      const { data: createdGroups, error: groupsError } = await this.retryWithBackoff(() =>
+        supabase
+          .from('groups')
+          .insert(groupsToInsert)
+          .select()
+      );
 
       if (groupsError) {
         console.error('Error creating groups:', groupsError);
@@ -464,10 +540,12 @@ class SequenceService {
 
       // 5. Fetch task templates to get their properties
       const allTaskIds = Object.values(input.selectedTasksByGroup).flat();
-      const { data: templates, error: templatesError } = await supabase
-        .from('task_templates')
-        .select('id, photo_proof_required, effort_score')
-        .in('id', allTaskIds);
+      const { data: templates, error: templatesError } = await this.retryWithBackoff(() =>
+        supabase
+          .from('task_templates')
+          .select('id, photo_proof_required, effort_score')
+          .in('id', allTaskIds)
+      );
 
       if (templatesError) {
         console.error('Error fetching templates:', templatesError);
@@ -499,10 +577,12 @@ class SequenceService {
         });
       });
 
-      const { data: createdInstances, error: instancesError } = await supabase
-        .from('task_instances')
-        .insert(taskInstances)
-        .select();
+      const { data: createdInstances, error: instancesError } = await this.retryWithBackoff(() =>
+        supabase
+          .from('task_instances')
+          .insert(taskInstances)
+          .select()
+      );
 
       if (instancesError) {
         console.error('Error creating task instances:', instancesError);
@@ -535,13 +615,48 @@ class SequenceService {
       });
 
       if (completions.length > 0) {
-        const { error: completionsError } = await supabase
-          .from('task_completions')
-          .insert(completions);
+        console.log(`[SEQUENCE SERVICE] Creating ${completions.length} task completions`);
+        
+        // Batch large inserts to avoid rate limits
+        const BATCH_SIZE = 50;
+        if (completions.length > BATCH_SIZE) {
+          const batches = [];
+          for (let i = 0; i < completions.length; i += BATCH_SIZE) {
+            batches.push(completions.slice(i, i + BATCH_SIZE));
+          }
+          
+          console.log(`[SEQUENCE SERVICE] Splitting into ${batches.length} batches of up to ${BATCH_SIZE} records`);
+          
+          for (let i = 0; i < batches.length; i++) {
+            const batch = batches[i];
+            const { error: completionsError } = await this.retryWithBackoff(() =>
+              supabase
+                .from('task_completions')
+                .insert(batch)
+            );
 
-        if (completionsError) {
-          console.error('Error creating task completions:', completionsError);
-          throw new Error(completionsError.message);
+            if (completionsError) {
+              console.error(`Error creating task completions batch ${i + 1}/${batches.length}:`, completionsError);
+              throw new Error(completionsError.message);
+            }
+            
+            // Add small delay between batches to avoid rate limits
+            if (i < batches.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+          }
+        } else {
+          // Single insert for small amounts
+          const { error: completionsError } = await this.retryWithBackoff(() =>
+            supabase
+              .from('task_completions')
+              .insert(completions)
+          );
+
+          if (completionsError) {
+            console.error('Error creating task completions:', completionsError);
+            throw new Error(completionsError.message);
+          }
         }
       }
 

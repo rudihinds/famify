@@ -68,7 +68,7 @@ export const sequenceApi = createApi({
           .from('sequences')
           .select(`
             *,
-            groups!inner (
+            groups (
               id,
               name,
               active_days,
@@ -87,13 +87,19 @@ export const sequenceApi = createApi({
           `)
           .in('child_id', childIds)
           .eq('status', 'active')
-          .gte('end_date', new Date().toISOString());
+          .gte('end_date', new Date().toISOString().split('T')[0]); // Use date format YYYY-MM-DD
 
-        if (error) return { error };
+        if (error) {
+          console.error('[SEQUENCE API] Error fetching active sequences:', error);
+          return { error };
+        }
+
+        console.log('[SEQUENCE API] Active sequences found:', data?.length || 0);
 
         // Process data to create map of childId -> sequence
         const sequencesByChild: Record<string, any> = {};
         data?.forEach(sequence => {
+          console.log('[SEQUENCE API] Processing sequence:', sequence.id, 'for child:', sequence.child_id);
           if (sequence.child_id) {
             sequencesByChild[sequence.child_id] = {
               id: sequence.id,
@@ -103,17 +109,17 @@ export const sequenceApi = createApi({
               budgetCurrency: sequence.budget_currency,
               budgetFamcoins: sequence.budget_famcoins,
               status: sequence.status,
-              totalTasks: sequence.groups.reduce((sum: number, group: any) => 
-                sum + group.task_instances.length, 0
+              totalTasks: (sequence.groups || []).reduce((sum: number, group: any) => 
+                sum + (group.task_instances || []).length, 0
               ),
-              completedTasks: sequence.groups.reduce((sum: number, group: any) => 
-                sum + group.task_instances.filter((task: any) => 
+              completedTasks: (sequence.groups || []).reduce((sum: number, group: any) => 
+                sum + (group.task_instances || []).filter((task: any) => 
                   task.task_completions?.some((tc: any) => tc.completed_at)
                 ).length, 0
               ),
               avgTasksPerDay: Math.ceil(
-                sequence.groups.reduce((sum: number, group: any) => 
-                  sum + group.task_instances.length, 0
+                (sequence.groups || []).reduce((sum: number, group: any) => 
+                  sum + (group.task_instances || []).length, 0
                 ) / 7
               ),
               progress: 0 // Calculate based on dates and completions
@@ -121,6 +127,7 @@ export const sequenceApi = createApi({
           }
         });
 
+        console.log('[SEQUENCE API] Final sequencesByChild map:', sequencesByChild);
         return { data: sequencesByChild };
       },
       providesTags: ['ActiveSequence'],

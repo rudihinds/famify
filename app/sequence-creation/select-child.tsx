@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Platform, Alert } from 'react-native';
+import { View, Text, FlatList, Platform, Alert } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { 
@@ -8,13 +8,14 @@ import {
   selectSelectedChild,
   selectIsStepValid,
   setEditingMode,
-  fetchSequenceForEditing
+  fetchSequenceForEditing,
+  resetWizard
 } from '../../store/slices/sequenceCreationSlice';
-import { ChevronRight } from 'lucide-react-native';
 import { childService, Child } from '../../services/childService';
 import ChildSelectionCard from '../../components/sequence-creation/ChildSelectionCard';
 import { StateContainer, LoadingState } from '../../components/common/StateDisplays';
-import { useRouter } from 'expo-router';
+import BottomNavigation from '../../components/sequence-creation/BottomNavigation';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useGetActiveSequencesByChildrenQuery } from '../../store/api/sequenceApi';
 import * as Haptics from 'expo-haptics';
 
@@ -35,10 +36,19 @@ export default function SelectChildScreen() {
   
   // Use RTK Query for active sequences
   const childIds = children.map(c => c.id);
-  const { data: activeSequences = {}, refetch: refetchSequences } = useGetActiveSequencesByChildrenQuery(
+  const { data: activeSequences = {}, refetch: refetchSequences, error: sequencesError } = useGetActiveSequencesByChildrenQuery(
     childIds,
     { skip: childIds.length === 0 }
   );
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('[SELECT CHILD] Active sequences:', activeSequences);
+    console.log('[SELECT CHILD] Children IDs:', childIds);
+    if (sequencesError) {
+      console.error('[SELECT CHILD] Error fetching sequences:', sequencesError);
+    }
+  }, [activeSequences, childIds, sequencesError]);
 
   useEffect(() => {
     // Set current step when screen mounts
@@ -48,6 +58,16 @@ export default function SelectChildScreen() {
   useEffect(() => {
     fetchChildren();
   }, [user?.id]);
+
+  // Refetch sequences when screen gains focus to ensure fresh data
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[SELECT CHILD] Screen focused - refetching sequences');
+      if (childIds.length > 0) {
+        refetchSequences();
+      }
+    }, [childIds.length, refetchSequences])
+  );
 
   const fetchChildren = useCallback(async () => {
     if (!user?.id) {
@@ -117,7 +137,7 @@ export default function SelectChildScreen() {
         ]
       );
     } else {
-      // No active sequence - proceed normally
+      // No active sequence - just set the selected child
       dispatch(setSelectedChild(childId));
     }
     
@@ -174,23 +194,12 @@ export default function SelectChildScreen() {
         </StateContainer>
       </View>
 
-      {/* Next Button */}
-      <View className="px-4 pb-6 pt-4 bg-white border-t border-gray-200">
-        <TouchableOpacity
-          onPress={handleNext}
-          disabled={!canAdvance}
-          className={`flex-row items-center justify-center py-4 px-6 rounded-xl ${
-            canAdvance ? 'bg-indigo-600' : 'bg-gray-300'
-          }`}
-        >
-          <Text className={`font-semibold mr-2 ${
-            canAdvance ? 'text-white' : 'text-gray-500'
-          }`}>
-            Next
-          </Text>
-          <ChevronRight size={20} color={canAdvance ? '#ffffff' : '#6b7280'} />
-        </TouchableOpacity>
-      </View>
+      {/* Bottom Navigation */}
+      <BottomNavigation
+        showBack={false}
+        onNext={handleNext}
+        nextDisabled={!canAdvance}
+      />
     </View>
   );
 }

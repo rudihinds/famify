@@ -52,8 +52,7 @@ export default function TasksScreen() {
   };
   
   const handleCreateSequence = () => {
-    // Always reset wizard state when starting a new sequence
-    // This ensures clean state and prevents stale data from previous sessions
+    // Reset wizard state when starting a new sequence creation
     dispatch(resetWizard());
     // Small delay to ensure navigation context is ready
     setTimeout(() => {

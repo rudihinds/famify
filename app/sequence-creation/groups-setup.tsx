@@ -10,9 +10,10 @@ import {
   selectGroups,
   selectIsStepValid
 } from '../../store/slices/sequenceCreationSlice';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
+import { Plus } from 'lucide-react-native';
 import GroupCard from '../../components/sequence-creation/GroupCard';
 import GroupEditModal from '../../components/sequence-creation/GroupEditModal';
+import BottomNavigation from '../../components/sequence-creation/BottomNavigation';
 import { useRouter } from 'expo-router';
 
 export default function GroupsSetupScreen() {
@@ -139,35 +140,12 @@ export default function GroupsSetupScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Navigation Buttons */}
-      <View className="px-4 pb-6 pt-4 bg-white border-t border-gray-200">
-        <View className="flex-row space-x-3">
-          <TouchableOpacity
-            onPress={handleBack}
-            className="flex-1 flex-row items-center justify-center py-4 px-6 rounded-xl border border-gray-300"
-          >
-            <ChevronLeft size={20} color="#6b7280" />
-            <Text className="font-semibold ml-2 text-gray-700">
-              Back
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            onPress={handleNext}
-            disabled={!canAdvance}
-            className={`flex-1 flex-row items-center justify-center py-4 px-6 rounded-xl ${
-              canAdvance ? 'bg-indigo-600' : 'bg-gray-300'
-            }`}
-          >
-            <Text className={`font-semibold mr-2 ${
-              canAdvance ? 'text-white' : 'text-gray-500'
-            }`}>
-              Next
-            </Text>
-            <ChevronRight size={20} color={canAdvance ? '#ffffff' : '#6b7280'} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* Bottom Navigation */}
+      <BottomNavigation
+        onBack={handleBack}
+        onNext={handleNext}
+        nextDisabled={!canAdvance}
+      />
 
       {/* Group Edit Modal */}
       <GroupEditModal

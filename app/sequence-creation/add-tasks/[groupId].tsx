@@ -11,9 +11,10 @@ import {
   selectTasksForGroup,
   selectCanAdvanceStep
 } from '../../../store/slices/sequenceCreationSlice';
-import { ChevronLeft, ChevronRight, X, Plus } from 'lucide-react-native';
+import { X, Plus } from 'lucide-react-native';
 import TaskSearchBar from '../../../components/sequence-creation/TaskSearchBar';
 import CategorySection from '../../../components/sequence-creation/CategorySection';
+import BottomNavigation from '../../../components/sequence-creation/BottomNavigation';
 import { taskService } from '../../../services/taskService';
 import { TaskCategory, TaskTemplate } from '../../../types/task';
 import { useRouter } from 'expo-router';
@@ -305,41 +306,19 @@ export default function AddTasksScreen() {
         </View>
       </Modal>
 
-      {/* Navigation Buttons */}
-      <View className="px-4 pb-6 pt-4 bg-white border-t border-gray-200">
+      {/* Bottom Navigation */}
+      <BottomNavigation
+        onBack={handleBack}
+        onNext={handleNext}
+        nextLabel={isLastGroup ? 'Review' : 'Next Group'}
+        nextDisabled={selectedTaskIds.length === 0}
+      >
         <View className="bg-gray-100 rounded-lg p-3 mb-3">
           <Text className="text-center text-gray-700 font-medium">
             Selected: {selectedTaskIds.length} tasks
           </Text>
         </View>
-        
-        <View className="flex-row space-x-3">
-          <TouchableOpacity
-            onPress={handleBack}
-            className="flex-1 flex-row items-center justify-center py-4 px-6 rounded-xl border border-gray-300"
-          >
-            <ChevronLeft size={20} color="#6b7280" />
-            <Text className="font-semibold ml-2 text-gray-700">
-              Back
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            onPress={handleNext}
-            disabled={selectedTaskIds.length === 0}
-            className={`flex-1 flex-row items-center justify-center py-4 px-6 rounded-xl ${
-              selectedTaskIds.length > 0 ? 'bg-indigo-600' : 'bg-gray-300'
-            }`}
-          >
-            <Text className={`font-semibold mr-2 ${
-              selectedTaskIds.length > 0 ? 'text-white' : 'text-gray-500'
-            }`}>
-              {isLastGroup ? 'Review' : 'Next Group'}
-            </Text>
-            <ChevronRight size={20} color={selectedTaskIds.length > 0 ? '#ffffff' : '#6b7280'} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      </BottomNavigation>
     </View>
   );
 }

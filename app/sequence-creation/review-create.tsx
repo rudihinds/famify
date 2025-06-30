@@ -13,10 +13,11 @@ import {
   selectIsEditing,
   createSequence
 } from '../../store/slices/sequenceCreationSlice';
-import { ChevronLeft, Check, Calendar, Coins, Users, ListTodo } from 'lucide-react-native';
+import { Calendar, Coins, Users, ListTodo } from 'lucide-react-native';
 import ChildInfoCard from '../../components/sequence-creation/ChildInfoCard';
 import ExpandableGroupSection from '../../components/sequence-creation/ExpandableGroupSection';
 import SequenceCreationSuccess from '../../components/sequence-creation/SequenceCreationSuccess';
+import BottomNavigation from '../../components/sequence-creation/BottomNavigation';
 import { childService } from '../../services/childService';
 import { useRouter } from 'expo-router';
 
@@ -379,37 +380,14 @@ export default function ReviewCreateScreen() {
         </View>
       </ScrollView>
 
-      {/* Create Button */}
-      <View className="px-4 pt-4 pb-6 bg-white border-t border-gray-200">
-        <View className="flex-row space-x-3">
-          <TouchableOpacity
-            onPress={handleBack}
-            className="flex-row flex-1 justify-center items-center px-6 py-4 rounded-xl border border-gray-300"
-          >
-            <ChevronLeft size={20} color="#6b7280" />
-            <Text className="ml-2 font-semibold text-gray-700">
-              Back
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            onPress={handleCreate}
-            disabled={isLoading}
-            className="flex-row flex-1 justify-center items-center px-6 py-4 bg-green-600 rounded-xl"
-          >
-            {isLoading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <>
-                <Check size={20} color="#ffffff" />
-                <Text className="ml-2 font-semibold text-white">
-                  {isEditing ? 'Update Sequence' : 'Create Sequence'}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* Bottom Navigation */}
+      <BottomNavigation
+        onBack={handleBack}
+        onNext={handleCreate}
+        nextLabel={isEditing ? 'Update Sequence' : 'Create Sequence'}
+        nextDisabled={isLoading}
+        nextButtonColor="green"
+      />
       
       {/* Success Animation */}
       <SequenceCreationSuccess

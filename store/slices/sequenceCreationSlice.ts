@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import { RootState } from "../index";
+import { sequenceApi } from "../api/sequenceApi";
 
 // Interfaces
 interface SequenceSettings {
@@ -168,6 +169,7 @@ const sequenceCreationSlice = createSlice({
     
     // State Management
     resetWizard: (state) => {
+      console.log('[SEQUENCE] resetWizard called - resetting entire state');
       Object.assign(state, initialState);
     },
     
@@ -190,6 +192,7 @@ const sequenceCreationSlice = createSlice({
     
     // Editing Mode
     setEditingMode: (state, action: PayloadAction<{sequenceId: string; isEditing: boolean}>) => {
+      console.log('[SEQUENCE] setEditingMode called with:', action.payload);
       state.isEditing = action.payload.isEditing;
       state.editingSequenceId = action.payload.sequenceId;
     },
@@ -204,6 +207,7 @@ const sequenceCreationSlice = createSlice({
       const { sequenceId, selectedChildId, sequenceSettings, groups, selectedTasksByGroup } = action.payload;
       
       // Set editing mode
+      console.log('[SEQUENCE] loadSequenceForEditing - setting isEditing=true for sequence:', sequenceId);
       state.isEditing = true;
       state.editingSequenceId = sequenceId;
       
@@ -263,10 +267,13 @@ export const fetchSequenceForEditing = createAsyncThunk(
 
 export const createSequence = createAsyncThunk(
   'sequenceCreation/create',
-  async (_, { getState, rejectWithValue }) => {
+  async (_, { getState, rejectWithValue, dispatch }) => {
     const state = getState() as RootState;
     const { selectedChildId, sequenceSettings, groups, selectedTasksByGroup, isEditing, editingSequenceId } = state.sequenceCreation;
     const parentId = state.auth.user?.id;
+    
+    // Debug logging
+    console.log('[SEQUENCE] createSequence called with isEditing:', isEditing, 'editingSequenceId:', editingSequenceId);
     
     try {
       // Validate all required data
@@ -295,11 +302,15 @@ export const createSequence = createAsyncThunk(
       const { sequenceService } = await import('../../services/sequenceService');
       
       // Only check for active sequence if not editing
+      console.log('[SEQUENCE] Checking active sequence - isEditing:', isEditing);
       if (!isEditing) {
         const hasActiveSequence = await sequenceService.checkActiveSequence(selectedChildId);
+        console.log('[SEQUENCE] Has active sequence:', hasActiveSequence);
         if (hasActiveSequence) {
           throw new Error('This child already has an active sequence. Please complete or archive it first.');
         }
+      } else {
+        console.log('[SEQUENCE] Skipping active sequence check because isEditing=true');
       }
       
       // Create or update the sequence
@@ -340,6 +351,9 @@ export const createSequence = createAsyncThunk(
           selectedTasksByGroup,
         });
       }
+      
+      // Invalidate RTK Query cache to ensure fresh data
+      dispatch(sequenceApi.util.invalidateTags(['ActiveSequence']));
       
       return { success: true, sequenceId: result.sequenceId };
     } catch (error: any) {

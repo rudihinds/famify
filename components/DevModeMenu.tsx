@@ -168,8 +168,14 @@ export default function DevModeMenu({ onDataChanged }: DevModeMenuProps = {}) {
       {/* Dev Mode Button */}
       <TouchableOpacity
         onPress={() => setIsVisible(true)}
-        className="fixed top-12 right-4 bg-yellow-500 p-2 rounded-full z-50"
-        style={{ position: 'fixed', top: 48, right: 16, zIndex: 50 }}
+        className="bg-yellow-500 p-2 rounded-full"
+        style={{ 
+          position: 'absolute', 
+          top: 48, 
+          right: 16, 
+          zIndex: 999,
+          elevation: 999 // For Android
+        }}
       >
         <Text className="text-black font-bold">🔧</Text>
       </TouchableOpacity>
