@@ -149,45 +149,22 @@ class TaskService {
    */
   async getDailyTasks(childId: string, date: string): Promise<TaskCompletionView[]> {
     try {
+      console.log('[getDailyTasks] Starting query for:', { childId, date });
+      
       // Get day of week - map to match schema (1-7, Mon-Sun)
       const dayOfWeek = new Date(date).getDay() === 0 ? 7 : new Date(date).getDay();
       
       const { data, error } = await supabase
         .from('task_completions')
         .select(`
-          id,
-          task_instance_id,
-          due_date,
-          status,
-          photo_url,
-          completed_at,
-          rejection_reason,
+          *,
           task_instances!inner (
-            id,
-            custom_name,
-            custom_description,
-            famcoin_value,
-            photo_proof_required,
-            effort_score,
-            template_id,
-            group_id,
+            *,
             task_templates!inner (
-              id,
-              name,
-              description,
-              category_id,
-              task_categories!inner (
-                id,
-                name,
-                icon,
-                color
-              )
+              *,
+              task_categories!inner (*)
             ),
-            groups!inner (
-              id,
-              name,
-              active_days
-            )
+            groups!inner (*)
           )
         `)
         .eq('child_id', childId)
@@ -199,6 +176,39 @@ class TaskService {
       }
       
       console.log('[getDailyTasks] Query returned', data?.length || 0, 'records for', date);
+      
+      // If no data, let's check with a simpler query
+      if (!data || data.length === 0) {
+        console.log('[getDailyTasks] No data found, checking with simple query...');
+        const { data: simpleData, error: simpleError } = await supabase
+          .from('task_completions')
+          .select('*')
+          .eq('child_id', childId)
+          .eq('due_date', date);
+        
+        console.log('[getDailyTasks] Simple query returned:', simpleData?.length || 0, 'records');
+        if (simpleError) {
+          console.error('[getDailyTasks] Simple query error:', simpleError);
+        }
+        
+        // Check if child exists
+        const { data: childData, error: childError } = await supabase
+          .from('children')
+          .select('id, name')
+          .eq('id', childId)
+          .single();
+        
+        console.log('[getDailyTasks] Child lookup:', childData, childError);
+        
+        // Check ANY task completions for this child
+        const { data: anyTasks, error: anyError } = await supabase
+          .from('task_completions')
+          .select('id, due_date, child_id')
+          .eq('child_id', childId)
+          .limit(5);
+        
+        console.log('[getDailyTasks] Any tasks for child:', anyTasks?.length || 0, 'tasks found', anyError);
+      }
       
       // Filter by active days and transform to TaskCompletionView
       const tasksForDay = (data || [])

@@ -27,8 +27,14 @@ export default function ChildTasksScreen() {
 
   // Load tasks when screen mounts or date changes
   useEffect(() => {
+    console.log('[ChildTasksScreen] Profile:', profile);
+    console.log('[ChildTasksScreen] Selected date:', selectedDate);
+    
     if (profile?.id) {
+      console.log('[ChildTasksScreen] Fetching tasks for child:', profile.id);
       dispatch(fetchDailyTasks({ childId: profile.id, date: selectedDate }));
+    } else {
+      console.log('[ChildTasksScreen] No profile ID available');
     }
   }, [profile?.id, selectedDate, dispatch]);
 
