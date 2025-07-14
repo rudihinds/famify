@@ -149,8 +149,8 @@ class TaskService {
    */
   async getDailyTasks(childId: string, date: string): Promise<TaskCompletionView[]> {
     try {
-      // Get day of week (0-6, Sunday-Saturday)
-      const dayOfWeek = new Date(date).getDay();
+      // Get day of week - map to match schema (1-7, Mon-Sun)
+      const dayOfWeek = new Date(date).getDay() === 0 ? 7 : new Date(date).getDay();
       
       const { data, error } = await supabase
         .from('task_completions')
@@ -198,28 +198,52 @@ class TaskService {
         throw error;
       }
       
+      console.log('[getDailyTasks] Query returned', data?.length || 0, 'records for', date);
+      
       // Filter by active days and transform to TaskCompletionView
       const tasksForDay = (data || [])
         .filter((task: any) => {
-          const activeDays = task.task_instances?.groups?.active_days || [];
-          return activeDays.includes(dayOfWeek);
+          // Check both nested and flat structure formats
+          const activeDays = task.task_instances?.groups?.active_days || 
+                           task['task_instances.groups.active_days'] || 
+                           [];
+          const included = activeDays.includes(dayOfWeek);
+          console.log('[getDailyTasks] Task active days check:', { 
+            taskId: task.id, 
+            activeDays, 
+            dayOfWeek, 
+            included 
+          });
+          return included;
         })
-        .map((task: any) => ({
-          id: task.id,
-          taskInstanceId: task.task_instance_id,
-          taskName: task.task_instances?.custom_name || task.task_instances?.task_templates?.name || '',
-          customDescription: task.task_instances?.custom_description || task.task_instances?.task_templates?.description,
-          groupName: task.task_instances?.groups?.name || '',
-          famcoinValue: task.task_instances?.famcoin_value || 0,
-          photoProofRequired: task.task_instances?.photo_proof_required || false,
-          effortScore: task.task_instances?.effort_score || 0,
-          status: task.status,
-          photoUrl: task.photo_url,
-          completedAt: task.completed_at,
-          rejectionReason: task.rejection_reason,
-          categoryIcon: task.task_instances?.task_templates?.task_categories?.icon || '',
-          categoryColor: task.task_instances?.task_templates?.task_categories?.color || '#000000',
-        }));
+        .map((task: any) => {
+          // Handle both nested and flat structure formats
+          const ti = task.task_instances || {};
+          const tt = ti.task_templates || {};
+          const tc = tt.task_categories || {};
+          const g = ti.groups || {};
+          
+          return {
+            id: task.id,
+            taskInstanceId: task.task_instance_id,
+            taskName: ti.custom_name || tt.name || 
+                     task['task_instances.custom_name'] || 
+                     task['task_instances.task_templates.name'] || '',
+            customDescription: ti.custom_description || tt.description ||
+                             task['task_instances.custom_description'] || 
+                             task['task_instances.task_templates.description'],
+            groupName: g.name || task['task_instances.groups.name'] || '',
+            famcoinValue: ti.famcoin_value || task['task_instances.famcoin_value'] || 0,
+            photoProofRequired: ti.photo_proof_required || task['task_instances.photo_proof_required'] || false,
+            effortScore: ti.effort_score || task['task_instances.effort_score'] || 0,
+            status: task.status,
+            photoUrl: task.photo_url,
+            completedAt: task.completed_at,
+            rejectionReason: task.rejection_reason,
+            categoryIcon: tc.icon || task['task_instances.task_templates.task_categories.icon'] || '',
+            categoryColor: tc.color || task['task_instances.task_templates.task_categories.color'] || '#000000',
+          };
+        });
       
       // Sort by status priority
       const statusOrder = {
