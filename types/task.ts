@@ -31,3 +31,43 @@ export interface CreateTaskTemplateInput {
   photo_proof_required?: boolean;
   effort_score?: number;
 }
+
+// Phase 1 types
+export interface TaskCompletionView {
+  id: string; // task_completion.id
+  taskInstanceId: string;
+  taskName: string;
+  customDescription?: string;
+  groupName: string;
+  famcoinValue: number;
+  photoProofRequired: boolean;
+  effortScore: number;
+  status: 'pending' | 'child_completed' | 'parent_approved' | 'parent_rejected' | 'excused';
+  photoUrl?: string;
+  completedAt?: string;
+  rejectionReason?: string;
+  categoryIcon: string;
+  categoryColor: string;
+}
+
+export interface TaskDetailView extends TaskCompletionView {
+  templateId: string;
+  templateName: string;
+  templateDescription?: string;
+  categoryName: string;
+  groupId: string;
+  sequenceId: string;
+  dueDate: string;
+  isBonusTask: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OfflineTaskAction {
+  id: string;
+  type: 'complete' | 'photo_upload';
+  taskCompletionId: string;
+  payload: any;
+  timestamp: number;
+  retryCount: number;
+}
