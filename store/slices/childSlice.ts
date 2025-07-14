@@ -199,6 +199,16 @@ const childSlice = createSlice({
     setProfile: (state, action: PayloadAction<ChildProfile>) => {
       state.profile = action.payload;
     },
+    devModeLogin: (state, action: PayloadAction<ChildProfile>) => {
+      // Dev mode: bypass PIN and set authenticated
+      state.profile = action.payload;
+      state.isAuthenticated = true;
+      state.sessionExpiry = Date.now() + 2 * 60 * 60 * 1000; // 2 hours
+      state.pinAttempts = 0;
+      state.isLocked = false;
+      state.lockUntil = null;
+      state.lastActivity = Date.now();
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -256,6 +266,7 @@ export const {
   logout,
   clearError,
   setProfile,
+  devModeLogin,
 } = childSlice.actions;
 
 export default childSlice.reducer;

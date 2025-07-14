@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -16,19 +16,35 @@ import {
   List,
   Settings,
   Star,
+  LogOut,
 } from "lucide-react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState, AppDispatch } from "../../store";
+import { logout } from "../../store/slices/childSlice";
+import { isDevMode } from "../../config/development";
 
 export default function ChildDashboard() {
   const router = useRouter();
+  const dispatch = useDispatch<AppDispatch>();
+  const { profile, isAuthenticated: reduxAuth } = useSelector((state: RootState) => state.child);
+  const devModeEnabled = isDevMode();
+  
   const [pin, setPin] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
 
-  // Mock data
-  const childName = "Alex";
-  const famcoinBalance = 250;
+  // Use Redux profile if available (dev mode login)
+  useEffect(() => {
+    if (devModeEnabled && profile) {
+      setIsAuthenticated(true);
+    }
+  }, [devModeEnabled, profile]);
+
+  // Use profile data or defaults
+  const childName = profile?.name || "Alex";
+  const famcoinBalance = profile?.famcoin_balance || 250;
   const completionPercentage = 65;
   const dailyTasks = [
     {
@@ -75,6 +91,13 @@ export default function ChildDashboard() {
       // In a real app, this would validate against stored PIN
       setIsAuthenticated(true);
     }
+  };
+  
+  const handleLogout = () => {
+    dispatch(logout());
+    setIsAuthenticated(false);
+    setPin("");
+    router.replace("/");
   };
 
   const renderPinScreen = () => (
@@ -176,17 +199,33 @@ export default function ChildDashboard() {
         <View className="flex-row justify-between items-center">
           <View className="flex-row items-center">
             <Image
-              source="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex"
+              source={profile?.avatar_url || "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex"}
               className="w-10 h-10 rounded-full bg-white"
             />
             <Text className="text-xl font-bold text-white ml-2">
               Hi, {childName}!
             </Text>
           </View>
-          <Text className="text-white font-bold">
-            {famcoinBalance} FAMCOINS
-          </Text>
+          <View className="flex-row items-center">
+            <Text className="text-white font-bold mr-3">
+              {famcoinBalance} FAMCOINS
+            </Text>
+            {devModeEnabled && (
+              <TouchableOpacity onPress={handleLogout} className="p-1">
+                <LogOut size={20} color="white" />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
+        
+        {/* Dev Mode Indicator */}
+        {devModeEnabled && profile && (
+          <View className="mt-2 bg-yellow-500 px-3 py-1 rounded-full self-start">
+            <Text className="text-xs text-black font-bold">
+              🔧 Dev Mode (No PIN)
+            </Text>
+          </View>
+        )}
       </View>
 
       <ScrollView className="flex-1">

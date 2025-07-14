@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useRouter } from 'expo-router';
-import { X, Trash2 } from 'lucide-react-native';
+import { X, Trash2, Users } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { RootState, AppDispatch, persistor } from '../store';
 import { signOut } from '../store/slices/authSlice';
+import { devModeLogin } from '../store/slices/childSlice';
 import { Alert } from '../lib/alert';
 import { childService } from '../services/childService';
 
@@ -16,6 +17,7 @@ interface DevModeMenuProps {
 export default function DevModeMenu({ onDataChanged }: DevModeMenuProps = {}) {
   const [isVisible, setIsVisible] = useState(false);
   const [isCreatingData, setIsCreatingData] = useState(false);
+  const [connectedChildren, setConnectedChildren] = useState<any[]>([]);
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
   const auth = useSelector((state: RootState) => state.auth);
@@ -37,6 +39,33 @@ export default function DevModeMenu({ onDataChanged }: DevModeMenuProps = {}) {
     }
   ];
   
+  // Fetch connected children when modal opens
+  useEffect(() => {
+    if (isVisible && auth.user?.id) {
+      fetchConnectedChildren();
+    }
+  }, [isVisible, auth.user?.id]);
+  
+  const fetchConnectedChildren = async () => {
+    if (!auth.user?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('children')
+        .select('*')
+        .eq('parent_id', auth.user.id)
+        .order('created_at', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching children:', error);
+      } else {
+        setConnectedChildren(data || []);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+  
   const handleGoToLogin = () => {
     setIsVisible(false);
     router.push('/auth/parent-login');
@@ -45,6 +74,32 @@ export default function DevModeMenu({ onDataChanged }: DevModeMenuProps = {}) {
   const handleGoToChildMode = () => {
     setIsVisible(false);
     router.push('/child/scanner');
+  };
+  
+  const handleLoginAsChild = async (child: any) => {
+    try {
+      // Use dev mode login to bypass PIN authentication
+      dispatch(devModeLogin({
+        id: child.id,
+        name: child.name,
+        age: child.age,
+        avatar_url: child.avatar_url,
+        focus_areas: child.focus_areas || [],
+        parent_id: child.parent_id,
+        famcoin_balance: child.famcoin_balance || 0,
+        created_at: child.created_at,
+        updated_at: child.updated_at,
+      }));
+      
+      // Navigate to child dashboard
+      setIsVisible(false);
+      router.replace('/child');
+      
+      Alert.alert('Dev Mode', `Logged in as ${child.name} (bypassing PIN)`);
+    } catch (error) {
+      console.error('Error logging in as child:', error);
+      Alert.alert('Error', 'Failed to login as child');
+    }
   };
   
   const handleCreateTestData = async () => {
@@ -206,7 +261,7 @@ export default function DevModeMenu({ onDataChanged }: DevModeMenuProps = {}) {
             </View>
             
             {/* Quick Actions */}
-            <View className="space-y-3">
+            <View style={{ gap: 12 }}>
               {!auth.user && (
                 <TouchableOpacity
                   onPress={handleGoToLogin}
@@ -229,6 +284,28 @@ export default function DevModeMenu({ onDataChanged }: DevModeMenuProps = {}) {
               
               {auth.user && (
                 <>
+                  {/* Show connected children as individual buttons */}
+                  {connectedChildren.length > 0 && (
+                    <View>
+                      <Text className="text-sm text-gray-600 mb-2">Login as Child:</Text>
+                      {connectedChildren.map((child) => (
+                        <TouchableOpacity
+                          key={child.id}
+                          onPress={() => handleLoginAsChild(child)}
+                          className="bg-cyan-500 p-3 rounded-lg flex-row items-center justify-between mb-2"
+                        >
+                          <View className="flex-1">
+                            <Text className="text-white font-semibold">{child.name}</Text>
+                            <Text className="text-cyan-100 text-xs">
+                              Age {child.age} • {child.famcoin_balance || 0} FC
+                            </Text>
+                          </View>
+                          <Users size={18} color="white" />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                  
                   <TouchableOpacity
                     onPress={handleCreateTestData}
                     disabled={isCreatingData}
