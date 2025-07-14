@@ -177,38 +177,6 @@ class TaskService {
       
       console.log('[getDailyTasks] Query returned', data?.length || 0, 'records for', date);
       
-      // If no data, let's check with a simpler query
-      if (!data || data.length === 0) {
-        console.log('[getDailyTasks] No data found, checking with simple query...');
-        const { data: simpleData, error: simpleError } = await supabase
-          .from('task_completions')
-          .select('*')
-          .eq('child_id', childId)
-          .eq('due_date', date);
-        
-        console.log('[getDailyTasks] Simple query returned:', simpleData?.length || 0, 'records');
-        if (simpleError) {
-          console.error('[getDailyTasks] Simple query error:', simpleError);
-        }
-        
-        // Check if child exists
-        const { data: childData, error: childError } = await supabase
-          .from('children')
-          .select('id, name')
-          .eq('id', childId)
-          .single();
-        
-        console.log('[getDailyTasks] Child lookup:', childData, childError);
-        
-        // Check ANY task completions for this child
-        const { data: anyTasks, error: anyError } = await supabase
-          .from('task_completions')
-          .select('id, due_date, child_id')
-          .eq('child_id', childId)
-          .limit(5);
-        
-        console.log('[getDailyTasks] Any tasks for child:', anyTasks?.length || 0, 'tasks found', anyError);
-      }
       
       // Filter by active days and transform to TaskCompletionView
       const tasksForDay = (data || [])
@@ -256,7 +224,7 @@ class TaskService {
         });
       
       // Sort by status priority
-      const statusOrder = {
+      const statusOrder: Record<string, number> = {
         'pending': 1,
         'parent_rejected': 2,
         'child_completed': 3,
@@ -335,14 +303,14 @@ class TaskService {
         throw new Error('Task completion not found');
       }
       
-      const parentId = taskData.task_instances?.groups?.sequences?.children?.parent_id;
+      const parentId = (taskData as any).task_instances?.groups?.sequences?.children?.parent_id;
       const childId = taskData.child_id;
       const timestamp = Date.now();
       const fileName = `photo_${timestamp}.jpg`;
       const filePath = `task-photos/${parentId}/${childId}/${taskCompletionId}/${fileName}`;
       
       // Upload photo
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('task-photos')
         .upload(filePath, photoBlob, {
           contentType: 'image/jpeg',
@@ -391,15 +359,15 @@ class TaskService {
         .from('task_completions')
         .select(`
           *,
-          task_instances!inner (
+          task_instances (
             *,
-            task_templates!inner (
+            task_templates (
               *,
-              task_categories!inner (*)
+              task_categories (*)
             ),
-            groups!inner (
+            groups (
               *,
-              sequences!inner (*)
+              sequences (*)
             )
           )
         `)
@@ -415,30 +383,36 @@ class TaskService {
         throw new Error('Task not found');
       }
       
-      // Transform to TaskDetailView
+      // Transform to TaskDetailView - handle potential null values
+      const ti = data.task_instances || {};
+      const tt = ti.task_templates || {};
+      const tc = tt.task_categories || {};
+      const g = ti.groups || {};
+      const s = g.sequences || {};
+      
       return {
         id: data.id,
         taskInstanceId: data.task_instance_id,
-        taskName: data.task_instances.custom_name || data.task_instances.task_templates.name,
-        customDescription: data.task_instances.custom_description || data.task_instances.task_templates.description,
-        groupName: data.task_instances.groups.name,
-        famcoinValue: data.task_instances.famcoin_value,
-        photoProofRequired: data.task_instances.photo_proof_required,
-        effortScore: data.task_instances.effort_score,
+        taskName: ti.custom_name || tt.name || 'Unnamed Task',
+        customDescription: ti.custom_description || tt.description,
+        groupName: g.name || 'Unnamed Group',
+        famcoinValue: ti.famcoin_value || 0,
+        photoProofRequired: ti.photo_proof_required || false,
+        effortScore: ti.effort_score || 0,
         status: data.status,
         photoUrl: data.photo_url,
         completedAt: data.completed_at,
         rejectionReason: data.rejection_reason,
-        categoryIcon: data.task_instances.task_templates.task_categories.icon,
-        categoryColor: data.task_instances.task_templates.task_categories.color,
-        templateId: data.task_instances.template_id,
-        templateName: data.task_instances.task_templates.name,
-        templateDescription: data.task_instances.task_templates.description,
-        categoryName: data.task_instances.task_templates.task_categories.name,
-        groupId: data.task_instances.group_id,
-        sequenceId: data.task_instances.groups.sequence_id,
+        categoryIcon: tc.icon || '📋',
+        categoryColor: tc.color || '#6b7280',
+        templateId: ti.template_id,
+        templateName: tt.name || 'Unnamed Template',
+        templateDescription: tt.description,
+        categoryName: tc.name || 'General',
+        groupId: ti.group_id,
+        sequenceId: g.sequence_id,
         dueDate: data.due_date,
-        isBonusTask: data.task_instances.is_bonus_task || false,
+        isBonusTask: ti.is_bonus_task || false,
         createdAt: data.created_at,
         updatedAt: data.updated_at,
       };

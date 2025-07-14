@@ -3,7 +3,6 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
 } from "react-native";
@@ -12,8 +11,10 @@ import { useSelector, useDispatch } from "react-redux";
 import { RootState, AppDispatch } from "../../../store";
 import { fetchDailyTasks, setSelectedDate } from "../../../store/slices/taskSlice";
 import { useRouter } from "expo-router";
-import { Calendar, ChevronLeft, ChevronRight, Coins } from "lucide-react-native";
-import { format, addDays, subDays, isToday } from "date-fns";
+import { Coins } from "lucide-react-native";
+import { format, addDays, subDays } from "date-fns";
+import TaskCard from "../../../components/TaskCard";
+import DateNavigator from "../../../components/DateNavigator";
 
 export default function ChildTasksScreen() {
   const router = useRouter();
@@ -74,64 +75,11 @@ export default function ChildTasksScreen() {
       <View className="mb-6">
         <Text className="text-lg font-semibold text-gray-900 mb-3">{title}</Text>
         {tasks.map((task) => (
-          <TouchableOpacity
+          <TaskCard
             key={task.id}
+            task={task}
             onPress={() => router.push(`/(child)/tasks/${task.id}`)}
-            className="bg-white rounded-xl p-4 mb-3 shadow-sm"
-          >
-            <View className="flex-row items-start justify-between">
-              <View className="flex-1">
-                <View className="flex-row items-center mb-1">
-                  <View
-                    className="w-2 h-2 rounded-full mr-2"
-                    style={{ backgroundColor: task.categoryColor }}
-                  />
-                  <Text className="text-xs text-gray-600">{task.groupName}</Text>
-                </View>
-                <Text className="text-base font-semibold text-gray-900 mb-1">
-                  {task.taskName}
-                </Text>
-                {task.customDescription && (
-                  <Text className="text-sm text-gray-600 mb-2">
-                    {task.customDescription}
-                  </Text>
-                )}
-                <View className="flex-row items-center gap-3">
-                  <View className="flex-row items-center">
-                    <Coins size={14} color="#10b981" />
-                    <Text className="text-sm font-semibold text-green-600 ml-1">
-                      {task.famcoinValue} FC
-                    </Text>
-                  </View>
-                  {task.photoProofRequired && (
-                    <Text className="text-xs text-gray-500">📷 Photo required</Text>
-                  )}
-                </View>
-              </View>
-              <View className="ml-3">
-                {task.status === "pending" && (
-                  <View className="bg-gray-100 rounded-full px-3 py-1">
-                    <Text className="text-xs font-medium text-gray-700">To Do</Text>
-                  </View>
-                )}
-                {task.status === "parent_rejected" && (
-                  <View className="bg-red-100 rounded-full px-3 py-1">
-                    <Text className="text-xs font-medium text-red-700">Try Again</Text>
-                  </View>
-                )}
-                {task.status === "child_completed" && (
-                  <View className="bg-yellow-100 rounded-full px-3 py-1">
-                    <Text className="text-xs font-medium text-yellow-700">Waiting</Text>
-                  </View>
-                )}
-                {task.status === "parent_approved" && (
-                  <View className="bg-green-100 rounded-full px-3 py-1">
-                    <Text className="text-xs font-medium text-green-700">Done!</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </TouchableOpacity>
+          />
         ))}
       </View>
     );
@@ -164,35 +112,11 @@ export default function ChildTasksScreen() {
       </View>
 
       {/* Date Navigation */}
-      <View className="bg-white border-b border-gray-200 px-4 py-3">
-        <View className="flex-row items-center justify-between">
-          <TouchableOpacity
-            onPress={() => navigateDate("prev")}
-            className="p-2"
-          >
-            <ChevronLeft size={20} color="#6b7280" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={goToToday}
-            className="flex-row items-center"
-          >
-            <Calendar size={16} color="#6b7280" />
-            <Text className="text-base font-medium text-gray-900 ml-2">
-              {isToday(new Date(selectedDate))
-                ? "Today"
-                : format(new Date(selectedDate), "EEEE, MMM d")}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => navigateDate("next")}
-            className="p-2"
-          >
-            <ChevronRight size={20} color="#6b7280" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <DateNavigator
+        selectedDate={selectedDate}
+        onDateChange={navigateDate}
+        onGoToToday={goToToday}
+      />
 
       <ScrollView
         className="flex-1"
