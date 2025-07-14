@@ -3,15 +3,15 @@ import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 import { RootState } from "../../store";
-import { Coins, CheckCircle2, Calendar } from "lucide-react-native";
+import { Coins, CheckCircle2, Calendar, Trophy } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import DevModeMenu from "../../components/DevModeMenu";
 import { isDevMode } from "../../config/development";
 
 export default function ChildHomeScreen() {
   const router = useRouter();
-  const { profile, currentBalance } = useSelector((state: RootState) => state.child);
-  const { dailyTasks } = useSelector((state: RootState) => state.tasks);
+  const { profile, currentBalance = 0 } = useSelector((state: RootState) => state.child);
+  const { dailyTasks = [] } = useSelector((state: RootState) => state.tasks);
 
   const pendingTasksCount = dailyTasks.filter(task => task.status === 'pending').length;
   const completedTasksCount = dailyTasks.filter(task => task.status === 'child_completed' || task.status === 'parent_approved').length;

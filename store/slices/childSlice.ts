@@ -240,6 +240,8 @@ const childSlice = createSlice({
       .addCase(createChildProfile.fulfilled, (state, action) => {
         state.isLoading = false;
         state.profile = action.payload;
+        state.currentBalance = action.payload.famcoin_balance || 0;
+        state.balanceLastUpdated = new Date().toISOString();
       })
       .addCase(createChildProfile.rejected, (state, action) => {
         state.isLoading = false;
@@ -270,6 +272,11 @@ const childSlice = createSlice({
         state.isLocked = false;
         state.lockUntil = null;
         state.lastActivity = Date.now();
+        // Balance should be set from profile, which should already be loaded
+        if (state.profile) {
+          state.currentBalance = state.profile.famcoin_balance || 0;
+          state.balanceLastUpdated = new Date().toISOString();
+        }
       })
       .addCase(validatePinLogin.rejected, (state, action) => {
         state.isLoading = false;
