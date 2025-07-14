@@ -191,9 +191,7 @@ class TaskService {
           )
         `)
         .eq('child_id', childId)
-        .eq('due_date', date)
-        .order('status')
-        .order('task_instances.effort_score', { ascending: false });
+        .eq('due_date', date);
       
       if (error) {
         console.error('Error fetching daily tasks:', error);
