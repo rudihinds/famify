@@ -27,6 +27,7 @@ interface ChildState {
   isLoading: boolean;
   error: string | null;
   currentBalance: number; // Current FAMCOIN balance
+  pendingEarnings: number; // FAMCOINs waiting for parent approval
   balanceLastUpdated: string | null;
 }
 
@@ -41,6 +42,7 @@ const initialState: ChildState = {
   isLoading: false,
   error: null,
   currentBalance: 0,
+  pendingEarnings: 0,
   balanceLastUpdated: null,
 };
 
@@ -218,16 +220,34 @@ const childSlice = createSlice({
       state.currentBalance = action.payload.famcoin_balance || 0;
       state.balanceLastUpdated = new Date().toISOString();
     },
-    updateBalance: (state, action: PayloadAction<number>) => {
-      state.currentBalance = action.payload;
+    updateBalance: (state, action: PayloadAction<{ balance: number; pendingEarnings?: number }>) => {
+      state.currentBalance = action.payload.balance;
+      if (action.payload.pendingEarnings !== undefined) {
+        state.pendingEarnings = action.payload.pendingEarnings;
+      }
       state.balanceLastUpdated = new Date().toISOString();
       // Also update profile if it exists
       if (state.profile) {
-        state.profile.famcoin_balance = action.payload;
+        state.profile.famcoin_balance = action.payload.balance;
       }
+    },
+    setPendingEarnings: (state, action: PayloadAction<number>) => {
+      state.pendingEarnings = action.payload;
     },
     setBalanceLastUpdated: (state, action: PayloadAction<string>) => {
       state.balanceLastUpdated = action.payload;
+    },
+    addToPendingEarnings: (state, action: PayloadAction<number>) => {
+      state.pendingEarnings += action.payload;
+    },
+    confirmEarnings: (state, action: PayloadAction<number>) => {
+      // Move earnings from pending to confirmed balance
+      state.currentBalance += action.payload;
+      state.pendingEarnings = Math.max(0, state.pendingEarnings - action.payload);
+      state.balanceLastUpdated = new Date().toISOString();
+      if (state.profile) {
+        state.profile.famcoin_balance = state.currentBalance;
+      }
     },
   },
   extraReducers: (builder) => {
@@ -295,7 +315,10 @@ export const {
   setProfile,
   devModeLogin,
   updateBalance,
+  setPendingEarnings,
   setBalanceLastUpdated,
+  addToPendingEarnings,
+  confirmEarnings,
 } = childSlice.actions;
 
 export default childSlice.reducer;

@@ -94,8 +94,6 @@ export default function DevModeMenu({ onDataChanged }: DevModeMenuProps = {}) {
       // Navigate to child dashboard
       setIsVisible(false);
       router.replace('/child');
-      
-      Alert.alert('Dev Mode', `Logged in as ${child.name} (bypassing PIN)`);
     } catch (error) {
       console.error('Error logging in as child:', error);
       Alert.alert('Error', 'Failed to login as child');

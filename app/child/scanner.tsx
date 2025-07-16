@@ -12,7 +12,7 @@ import {
 // import { BarCodeScanner } from "expo-barcode-scanner";
 // TODO: Uncomment when running on device with camera
 import { ArrowLeft, Camera, Heart, Code } from "lucide-react-native";
-import { isDevMode, DEV_CONFIG } from "../../config/development";
+import { isDevMode, DEV_CONFIG, getTestChildren } from "../../config/development";
 import * as Haptics from "expo-haptics";
 
 export default function QRScannerScreen() {
@@ -96,7 +96,8 @@ export default function QRScannerScreen() {
       setConnectionData(null);
     } else {
       dispatch(clearError());
-      router.back();
+      // Navigate to home screen instead of using back
+      router.replace("/");
     }
   };
 

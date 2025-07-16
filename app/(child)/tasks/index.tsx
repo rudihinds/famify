@@ -10,7 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState, AppDispatch } from "../../../store";
 import { fetchDailyTasks, setSelectedDate } from "../../../store/slices/taskSlice";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Coins } from "lucide-react-native";
 import { format, addDays, subDays } from "date-fns";
 import TaskCard from "../../../components/TaskCard";
@@ -19,12 +19,20 @@ import DateNavigator from "../../../components/DateNavigator";
 export default function ChildTasksScreen() {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
-  const { profile, currentBalance } = useSelector((state: RootState) => state.child);
+  const { profile, currentBalance, pendingEarnings } = useSelector((state: RootState) => state.child);
   const { dailyTasks, selectedDate, isLoading, isRefreshing, error } = useSelector(
     (state: RootState) => state.tasks
   );
 
   const [refreshing, setRefreshing] = useState(false);
+
+  // Reset to today's date when screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      const today = format(new Date(), "yyyy-MM-dd");
+      dispatch(setSelectedDate(today));
+    }, [dispatch])
+  );
 
   // Load tasks when screen mounts or date changes
   useEffect(() => {
@@ -102,11 +110,18 @@ export default function ChildTasksScreen() {
       <View className="bg-white border-b border-gray-200 px-4 py-3">
         <View className="flex-row items-center justify-between">
           <Text className="text-xl font-bold text-gray-900">My Tasks</Text>
-          <View className="flex-row items-center bg-green-50 rounded-full px-3 py-1">
-            <Coins size={16} color="#10b981" />
-            <Text className="text-sm font-semibold text-green-700 ml-1">
-              {currentBalance} FC
-            </Text>
+          <View className="flex-col items-end">
+            <View className="flex-row items-center bg-green-50 rounded-full px-3 py-1">
+              <Coins size={16} color="#10b981" />
+              <Text className="text-sm font-semibold text-green-700 ml-1">
+                {currentBalance} FC
+              </Text>
+            </View>
+            {pendingEarnings > 0 && (
+              <Text className="text-xs text-gray-500 mt-1">
+                +{pendingEarnings} pending
+              </Text>
+            )}
           </View>
         </View>
       </View>

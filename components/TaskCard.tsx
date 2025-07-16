@@ -1,7 +1,8 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { Coins } from "lucide-react-native";
+import { Coins, Lock } from "lucide-react-native";
 import { TaskCompletionView } from "../types/task";
+import { isAfter, startOfDay, parseISO } from "date-fns";
 
 interface TaskCardProps {
   task: TaskCompletionView;
@@ -9,10 +10,21 @@ interface TaskCardProps {
 }
 
 export default function TaskCard({ task, onPress }: TaskCardProps) {
+  // Check if task is in the future
+  const isFutureTask = task.dueDate ? (() => {
+    const taskDate = startOfDay(parseISO(task.dueDate));
+    const today = startOfDay(new Date());
+    return isAfter(taskDate, today);
+  })() : false;
+  
+  // Determine if the card should be disabled
+  const isDisabled = isFutureTask && (task.status === 'pending' || task.status === 'parent_rejected');
+
   return (
     <TouchableOpacity
-      onPress={onPress}
-      className="bg-white rounded-xl p-4 mb-3 shadow-sm"
+      onPress={isDisabled ? undefined : onPress}
+      disabled={isDisabled}
+      className={`bg-white rounded-xl p-4 mb-3 shadow-sm ${isDisabled ? 'opacity-50' : ''}`}
     >
       <View className="flex-row items-start justify-between">
         <View className="flex-1">
@@ -44,25 +56,34 @@ export default function TaskCard({ task, onPress }: TaskCardProps) {
           </View>
         </View>
         <View className="ml-3">
-          {task.status === "pending" && (
-            <View className="bg-gray-100 rounded-full px-3 py-1">
-              <Text className="text-xs font-medium text-gray-700">To Do</Text>
+          {isDisabled ? (
+            <View className="bg-gray-100 rounded-full px-3 py-1 flex-row items-center">
+              <Lock size={10} color="#6b7280" />
+              <Text className="text-xs font-medium text-gray-500 ml-1">Future</Text>
             </View>
-          )}
-          {task.status === "parent_rejected" && (
-            <View className="bg-red-100 rounded-full px-3 py-1">
-              <Text className="text-xs font-medium text-red-700">Try Again</Text>
-            </View>
-          )}
-          {task.status === "child_completed" && (
-            <View className="bg-yellow-100 rounded-full px-3 py-1">
-              <Text className="text-xs font-medium text-yellow-700">Waiting</Text>
-            </View>
-          )}
-          {task.status === "parent_approved" && (
-            <View className="bg-green-100 rounded-full px-3 py-1">
-              <Text className="text-xs font-medium text-green-700">Done!</Text>
-            </View>
+          ) : (
+            <>
+              {task.status === "pending" && (
+                <View className="bg-gray-100 rounded-full px-3 py-1">
+                  <Text className="text-xs font-medium text-gray-700">To Do</Text>
+                </View>
+              )}
+              {task.status === "parent_rejected" && (
+                <View className="bg-red-100 rounded-full px-3 py-1">
+                  <Text className="text-xs font-medium text-red-700">Try Again</Text>
+                </View>
+              )}
+              {task.status === "child_completed" && (
+                <View className="bg-yellow-100 rounded-full px-3 py-1">
+                  <Text className="text-xs font-medium text-yellow-700">Waiting</Text>
+                </View>
+              )}
+              {task.status === "parent_approved" && (
+                <View className="bg-green-100 rounded-full px-3 py-1">
+                  <Text className="text-xs font-medium text-green-700">Done!</Text>
+                </View>
+              )}
+            </>
           )}
         </View>
       </View>

@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useSelector } from "react-redux";
-import { RootState } from "../../store";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState, AppDispatch } from "../../store";
+import { fetchTodayTasks } from "../../store/slices/taskSlice";
 import { Coins, CheckCircle2, Calendar, Trophy } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import DevModeMenu from "../../components/DevModeMenu";
@@ -10,11 +11,19 @@ import { isDevMode } from "../../config/development";
 
 export default function ChildHomeScreen() {
   const router = useRouter();
+  const dispatch = useDispatch<AppDispatch>();
   const { profile, currentBalance = 0 } = useSelector((state: RootState) => state.child);
-  const { dailyTasks = [] } = useSelector((state: RootState) => state.tasks);
+  const { todayTasks = [] } = useSelector((state: RootState) => state.tasks);
 
-  const pendingTasksCount = dailyTasks.filter(task => task.status === 'pending').length;
-  const completedTasksCount = dailyTasks.filter(task => task.status === 'child_completed' || task.status === 'parent_approved').length;
+  // Fetch today's tasks when the screen loads
+  useEffect(() => {
+    if (profile?.id) {
+      dispatch(fetchTodayTasks({ childId: profile.id }));
+    }
+  }, [profile?.id, dispatch]);
+
+  const pendingTasksCount = todayTasks.filter(task => task.status === 'pending').length;
+  const completedTasksCount = todayTasks.filter(task => task.status === 'child_completed' || task.status === 'parent_approved').length;
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">

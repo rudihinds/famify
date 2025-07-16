@@ -1,6 +1,9 @@
 import { supabase } from '../lib/supabase';
 import { TaskCategory, TaskTemplate, CreateTaskTemplateInput, TaskCompletionView, TaskDetailView } from '../types/task';
 
+// Storage constants
+const TASK_PHOTOS_BUCKET = 'task-photos';
+
 class TaskService {
   /**
    * Fetch all task categories
@@ -220,6 +223,7 @@ class TaskService {
             rejectionReason: task.rejection_reason,
             categoryIcon: tc.icon || task['task_instances.task_templates.task_categories.icon'] || '',
             categoryColor: tc.color || task['task_instances.task_templates.task_categories.color'] || '#000000',
+            dueDate: task.due_date || date, // fallback to the date parameter if due_date is missing
           };
         });
       
@@ -271,66 +275,99 @@ class TaskService {
    */
   async uploadTaskPhoto(
     taskCompletionId: string,
-    photoBlob: Blob,
+    photoArrayBuffer: ArrayBuffer,
     onProgress?: (progress: number) => void
   ): Promise<string> {
     try {
-      // Get task completion details to construct path
+      console.log('[uploadTaskPhoto] Starting upload for task:', taskCompletionId);
+      
+      // Get task completion details
       const { data: taskData, error: fetchError } = await supabase
         .from('task_completions')
-        .select(`
-          id,
-          child_id,
-          task_instances!inner (
-            id,
-            groups!inner (
-              id,
-              sequences!inner (
-                id,
-                child_id,
-                children!inner (
-                  id,
-                  parent_id
-                )
-              )
-            )
-          )
-        `)
+        .select('id, child_id')
         .eq('id', taskCompletionId)
         .single();
       
       if (fetchError || !taskData) {
+        console.error('Error fetching task completion:', fetchError);
         throw new Error('Task completion not found');
       }
       
-      const parentId = (taskData as any).task_instances?.groups?.sequences?.children?.parent_id;
       const childId = taskData.child_id;
-      const timestamp = Date.now();
-      const fileName = `photo_${timestamp}.jpg`;
-      const filePath = `task-photos/${parentId}/${childId}/${taskCompletionId}/${fileName}`;
       
-      // Upload photo
-      const { error: uploadError } = await supabase.storage
-        .from('task-photos')
-        .upload(filePath, photoBlob, {
-          contentType: 'image/jpeg',
-          upsert: false,
-        });
+      // Get parent_id from children table
+      const { data: childData, error: childError } = await supabase
+        .from('children')
+        .select('parent_id')
+        .eq('id', childId)
+        .single();
       
-      if (uploadError) {
-        console.error('Error uploading photo:', uploadError);
-        throw uploadError;
+      if (childError || !childData) {
+        console.error('Error fetching child data:', childError);
+        throw new Error('Child not found');
       }
       
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('task-photos')
-        .getPublicUrl(filePath);
+      const parentId = childData.parent_id;
+      const timestamp = Date.now();
+      
+      // Default to JPEG for ArrayBuffer uploads
+      const fileName = `photo_${timestamp}.jpg`;
+      
+      // Include bucket name in the path - this is how Supabase expects it for public URLs to work
+      const filePath = `${TASK_PHOTOS_BUCKET}/${parentId}/${childId}/${taskCompletionId}/${fileName}`;
+      
+      console.log('[uploadTaskPhoto service] Received ArrayBuffer:', {
+        byteLength: photoArrayBuffer.byteLength,
+        constructor: photoArrayBuffer.constructor.name
+      });
+      
+      console.log('[uploadTaskPhoto service] Bucket:', TASK_PHOTOS_BUCKET);
+      console.log('[uploadTaskPhoto service] Upload path:', filePath);
+      
+      // Set content type for JPEG
+      const contentType = 'image/jpeg';
+      console.log('[uploadTaskPhoto service] Content type for upload:', contentType);
+      
+      // Validate ArrayBuffer before upload
+      if (photoArrayBuffer.byteLength === 0) {
+        console.error('[uploadTaskPhoto service] CRITICAL: ArrayBuffer size is 0 before upload!');
+        throw new Error('ArrayBuffer is empty');
+      }
+      
+      console.log('[uploadTaskPhoto service] Calling supabase.storage.upload...');
+      
+      // Upload ArrayBuffer directly
+      const { error: uploadError, data: uploadData } = await supabase.storage
+        .from(TASK_PHOTOS_BUCKET)
+        .upload(filePath, photoArrayBuffer, {
+          contentType: contentType,
+          upsert: true, // Allow overwriting for retakes
+        });
+      
+      console.log('[uploadTaskPhoto service] Upload result:', {
+        error: uploadError,
+        data: uploadData
+      });
+      
+      let photoUrl: string;
+      
+      if (uploadError) {
+        console.error('Error uploading to storage:', uploadError);
+        throw new Error(`Failed to upload photo: ${uploadError.message}`);
+      } else {
+        // Get public URL from storage
+        const { data: { publicUrl } } = supabase.storage
+          .from(TASK_PHOTOS_BUCKET)
+          .getPublicUrl(filePath);
+        
+        photoUrl = publicUrl;
+        console.log('[uploadTaskPhoto] Successfully uploaded to storage, URL:', photoUrl);
+      }
       
       // Update task completion with photo URL
       const { error: updateError } = await supabase
         .from('task_completions')
-        .update({ photo_url: publicUrl })
+        .update({ photo_url: photoUrl })
         .eq('id', taskCompletionId);
       
       if (updateError) {
@@ -343,7 +380,7 @@ class TaskService {
         onProgress(100);
       }
       
-      return publicUrl;
+      return photoUrl;
     } catch (error) {
       console.error('Failed to upload task photo:', error);
       throw error;
@@ -388,7 +425,7 @@ class TaskService {
       const tt = ti.task_templates || {};
       const tc = tt.task_categories || {};
       const g = ti.groups || {};
-      const s = g.sequences || {};
+      // const s = g.sequences || {}; // Not used currently
       
       return {
         id: data.id,

@@ -58,7 +58,7 @@ export default function ChildLayout() {
         }}
       />
       <Tabs.Screen
-        name="tasks"
+        name="tasks/index"
         options={{
           title: "Tasks",
           tabBarIcon: ({ color, size }) => (
@@ -82,6 +82,12 @@ export default function ChildLayout() {
           tabBarIcon: ({ color, size }) => (
             <User size={size} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="tasks/[id]"
+        options={{
+          href: null, // Hide from tab bar
         }}
       />
     </Tabs>

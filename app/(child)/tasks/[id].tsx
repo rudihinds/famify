@@ -6,37 +6,44 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
-  Modal,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState, AppDispatch } from "../../../store";
-import { markTaskComplete, uploadTaskPhoto } from "../../../store/slices/taskSlice";
+import { markTaskComplete, uploadTaskPhoto, fetchDailyTasks } from "../../../store/slices/taskSlice";
 import { 
   ArrowLeft, 
   Camera, 
   CheckCircle, 
   Coins, 
   AlertCircle,
-  X
+  Lock,
 } from "lucide-react-native";
 import { taskService } from "../../../services/taskService";
 import { TaskDetailView } from "../../../types/task";
+import PhotoCapture from "../../../components/PhotoCapture";
+import { isAfter, startOfDay, parseISO } from "date-fns";
 
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
   const { dailyTasks, photoUploadProgress } = useSelector((state: RootState) => state.tasks);
+  const { profile } = useSelector((state: RootState) => state.child);
   const [taskDetail, setTaskDetail] = useState<TaskDetailView | null>(null);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(true);
 
   // Find task in Redux store
   const task = dailyTasks.find(t => t.id === id);
+  
+  // Use task detail for accurate status since Redux might be stale
+  const currentStatus = taskDetail?.status || task?.status;
 
   // Load detailed task information
   useEffect(() => {
@@ -48,6 +55,7 @@ export default function TaskDetailScreen() {
     
     try {
       setLoading(true);
+      setError(null); // Clear any previous errors
       const details = await taskService.getTaskDetails(id);
       setTaskDetail(details);
     } catch (err) {
@@ -59,26 +67,56 @@ export default function TaskDetailScreen() {
   };
 
   const handleCompleteTask = async () => {
-    if (!task || task.status !== "pending" && task.status !== "parent_rejected") return;
+    if (!task || !taskDetail) return;
+    
+    // Check if task is in the future
+    const taskDate = startOfDay(parseISO(taskDetail.dueDate));
+    const today = startOfDay(new Date());
+    const isFutureTask = isAfter(taskDate, today);
+    
+    if (isFutureTask) {
+      Alert.alert(
+        "Cannot Complete Future Task",
+        "You can only complete tasks for today or past dates. Please wait until the scheduled date to complete this task.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+    
+    if (currentStatus !== "pending" && currentStatus !== "parent_rejected") {
+      setError("Task has already been completed");
+      return;
+    }
 
-    if (task.photoProofRequired && !task.photoUrl) {
+    if (task.photoProofRequired && !taskDetail.photoUrl && !task.photoUrl) {
       setShowPhotoModal(true);
       return;
     }
 
     try {
       setCompleting(true);
-      await dispatch(markTaskComplete(task.id)).unwrap();
-      router.back();
+      const result = await dispatch(markTaskComplete(task.id)).unwrap();
+      
+      // Show success feedback before navigating back
+      setCompleting(false);
+      setError(null);
+      
+      // Brief delay to show success state
+      setTimeout(() => {
+        router.back();
+      }, 500);
     } catch (err) {
       setError("Failed to complete task");
-    } finally {
       setCompleting(false);
     }
   };
 
   const handlePhotoCapture = async (photoUri: string) => {
     if (!task) return;
+
+    console.log('[TaskDetail] handlePhotoCapture called with URI:', photoUri);
+    console.log('[TaskDetail] URI type:', typeof photoUri);
+    console.log('[TaskDetail] URI length:', photoUri.length);
 
     try {
       await dispatch(uploadTaskPhoto({ 
@@ -87,9 +125,20 @@ export default function TaskDetailScreen() {
       })).unwrap();
       
       setShowPhotoModal(false);
-      // Now complete the task
-      handleCompleteTask();
+      // Don't complete the task - just close the modal and show the uploaded photo
+      
+      // Reload task details to get updated status from server
+      await loadTaskDetails();
+      
+      // Also refresh the daily tasks to ensure Redux has latest data
+      if (profile?.id && task.dueDate) {
+        await dispatch(fetchDailyTasks({ 
+          childId: profile.id, 
+          date: task.dueDate 
+        }));
+      }
     } catch (err) {
+      console.error("Photo upload error:", err);
       setError("Failed to upload photo");
     }
   };
@@ -119,8 +168,6 @@ export default function TaskDetailScreen() {
       </SafeAreaView>
     );
   }
-
-  const uploadProgress = photoUploadProgress[task.id] || 0;
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -183,18 +230,51 @@ export default function TaskDetailScreen() {
                   Photo Proof Required
                 </Text>
               </View>
-              {task.photoUrl && (
-                <Image
-                  source={{ uri: task.photoUrl }}
-                  className="w-full h-48 rounded-lg mt-3"
-                  resizeMode="cover"
-                />
+              {(taskDetail.photoUrl || task.photoUrl) && (
+                <>
+                  {console.log('[TaskDetail] Displaying photo URL:', taskDetail.photoUrl || task.photoUrl)}
+                  <View className="relative">
+                    {imageLoading && (
+                      <View className="absolute inset-0 w-full h-48 rounded-lg mt-3 bg-gray-200 items-center justify-center">
+                        <ActivityIndicator size="small" color="#3b82f6" />
+                      </View>
+                    )}
+                    <Image
+                      key={taskDetail.photoUrl || task.photoUrl} // Force re-render on URL change
+                      source={{ 
+                        uri: taskDetail.photoUrl || task.photoUrl,
+                        cache: 'reload' // Force cache refresh
+                      }}
+                      className="w-full h-48 rounded-lg mt-3"
+                      resizeMode="cover"
+                      onLoadStart={() => setImageLoading(true)}
+                      onError={(error) => {
+                        console.error('[TaskDetail] Image failed to load:', error.nativeEvent.error);
+                        setImageLoading(false);
+                      }}
+                      onLoad={() => {
+                        console.log('[TaskDetail] Image loaded successfully');
+                        setImageLoading(false);
+                      }}
+                    />
+                  </View>
+                  {/* Show retake photo button if task is not yet approved */}
+                  {currentStatus !== "parent_approved" && (
+                    <TouchableOpacity
+                      onPress={() => setShowPhotoModal(true)}
+                      className="mt-3 bg-blue-500 rounded-lg py-2 px-4 flex-row items-center justify-center"
+                    >
+                      <Camera size={16} color="white" />
+                      <Text className="text-white font-medium ml-2">Retake Photo</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
             </View>
           )}
 
           {/* Status */}
-          {task.status === "parent_rejected" && task.rejectionReason && (
+          {currentStatus === "parent_rejected" && task.rejectionReason && (
             <View className="bg-red-50 rounded-xl p-4 mb-4">
               <View className="flex-row items-start">
                 <AlertCircle size={20} color="#ef4444" />
@@ -211,7 +291,7 @@ export default function TaskDetailScreen() {
           )}
 
           {/* Completed Status */}
-          {task.status === "child_completed" && (
+          {currentStatus === "child_completed" && (
             <View className="bg-yellow-50 rounded-xl p-4 mb-4">
               <View className="flex-row items-center">
                 <CheckCircle size={20} color="#f59e0b" />
@@ -222,7 +302,7 @@ export default function TaskDetailScreen() {
             </View>
           )}
 
-          {task.status === "parent_approved" && (
+          {currentStatus === "parent_approved" && (
             <View className="bg-green-50 rounded-xl p-4 mb-4">
               <View className="flex-row items-center">
                 <CheckCircle size={20} color="#10b981" />
@@ -243,73 +323,52 @@ export default function TaskDetailScreen() {
       </ScrollView>
 
       {/* Bottom Action Button */}
-      {(task.status === "pending" || task.status === "parent_rejected") && (
+      {(currentStatus === "pending" || currentStatus === "parent_rejected") && taskDetail && (
         <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
-          <TouchableOpacity
-            onPress={handleCompleteTask}
-            disabled={completing}
-            className={`rounded-xl py-4 px-6 flex-row items-center justify-center ${
-              completing ? "bg-gray-400" : "bg-green-500"
-            }`}
-          >
-            {completing ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <>
-                <CheckCircle size={20} color="white" />
-                <Text className="text-white font-semibold text-lg ml-2">
-                  {task.photoProofRequired && !task.photoUrl
-                    ? "Add Photo & Complete"
-                    : "Mark as Complete"}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
+          {(() => {
+            const taskDate = startOfDay(parseISO(taskDetail.dueDate));
+            const today = startOfDay(new Date());
+            const isFutureTask = isAfter(taskDate, today);
+            
+            return (
+              <TouchableOpacity
+                onPress={handleCompleteTask}
+                disabled={completing || isFutureTask}
+                className={`rounded-xl py-4 px-6 flex-row items-center justify-center ${
+                  completing || isFutureTask ? "bg-gray-400" : "bg-green-500"
+                }`}
+              >
+                {completing ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : isFutureTask ? (
+                  <>
+                    <Lock size={20} color="white" />
+                    <Text className="text-white font-semibold text-lg ml-2">
+                      Available on scheduled date
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={20} color="white" />
+                    <Text className="text-white font-semibold text-lg ml-2">
+                      {task.photoProofRequired && !task.photoUrl
+                        ? "Add Photo"
+                        : "Mark as Complete"}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            );
+          })()}
         </View>
       )}
 
       {/* Photo Capture Modal */}
-      <Modal
+      <PhotoCapture
         visible={showPhotoModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowPhotoModal(false)}
-      >
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-3xl p-6">
-            <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-xl font-bold">Add Photo Proof</Text>
-              <TouchableOpacity onPress={() => setShowPhotoModal(false)}>
-                <X size={24} color="#374151" />
-              </TouchableOpacity>
-            </View>
-
-            <Text className="text-gray-600 mb-6">
-              Take a photo to show you've completed this task
-            </Text>
-
-            {/* Placeholder for PhotoCapture component */}
-            <View className="bg-gray-100 rounded-xl p-8 items-center justify-center mb-4">
-              <Camera size={48} color="#6b7280" />
-              <Text className="text-gray-600 mt-2">Photo capture coming soon</Text>
-            </View>
-
-            {uploadProgress > 0 && uploadProgress < 100 && (
-              <View className="mb-4">
-                <Text className="text-sm text-gray-600 mb-2">
-                  Uploading... {uploadProgress}%
-                </Text>
-                <View className="bg-gray-200 rounded-full h-2">
-                  <View
-                    className="bg-green-500 rounded-full h-2"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </View>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowPhotoModal(false)}
+        onPhotoCapture={handlePhotoCapture}
+      />
     </SafeAreaView>
   );
 }

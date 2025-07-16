@@ -48,6 +48,7 @@ export interface TaskCompletionView {
   rejectionReason?: string;
   categoryIcon: string;
   categoryColor: string;
+  dueDate: string;
 }
 
 export interface TaskDetailView extends TaskCompletionView {
