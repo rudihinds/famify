@@ -7,6 +7,7 @@ import childSlice from "./slices/childSlice";
 import connectionSlice from "./slices/connectionSlice";
 import sequenceCreationSlice from "./slices/sequenceCreationSlice";
 import sequencesSlice from "./slices/sequencesSlice";
+import taskSlice from "./slices/taskSlice";
 import { sequenceApi } from "./api/sequenceApi";
 
 // Storage implementation with proper error handling
@@ -72,7 +73,7 @@ if (Platform.OS === "web") {
 const persistConfig = {
   key: "root",
   storage,
-  whitelist: ["auth"],
+  whitelist: ["auth", "tasks"], // Added tasks for offline queue persistence
   debug: false,
 };
 
@@ -91,6 +92,7 @@ const rootReducer = combineReducers({
   connection: connectionSlice,
   sequenceCreation: persistReducer(sequenceCreationPersistConfig, sequenceCreationSlice),
   sequences: sequencesSlice,
+  tasks: taskSlice,
   [sequenceApi.reducerPath]: sequenceApi.reducer,
 });
 

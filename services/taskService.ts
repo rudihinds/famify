@@ -1,5 +1,8 @@
 import { supabase } from '../lib/supabase';
-import { TaskCategory, TaskTemplate, CreateTaskTemplateInput } from '../types/task';
+import { TaskCategory, TaskTemplate, CreateTaskTemplateInput, TaskCompletionView, TaskDetailView } from '../types/task';
+
+// Storage constants
+const TASK_PHOTOS_BUCKET = 'task-photos';
 
 class TaskService {
   /**
@@ -142,6 +145,318 @@ class TaskService {
       template.name.toLowerCase().includes(query) ||
       template.description?.toLowerCase().includes(query)
     );
+  }
+
+  /**
+   * Get daily tasks for a child
+   */
+  async getDailyTasks(childId: string, date: string): Promise<TaskCompletionView[]> {
+    try {
+      console.log('[getDailyTasks] Starting query for:', { childId, date });
+      
+      // Get day of week - map to match schema (1-7, Mon-Sun)
+      const dayOfWeek = new Date(date).getDay() === 0 ? 7 : new Date(date).getDay();
+      
+      const { data, error } = await supabase
+        .from('task_completions')
+        .select(`
+          *,
+          task_instances!inner (
+            *,
+            task_templates!inner (
+              *,
+              task_categories!inner (*)
+            ),
+            groups!inner (*)
+          )
+        `)
+        .eq('child_id', childId)
+        .eq('due_date', date);
+      
+      if (error) {
+        console.error('Error fetching daily tasks:', error);
+        throw error;
+      }
+      
+      console.log('[getDailyTasks] Query returned', data?.length || 0, 'records for', date);
+      
+      
+      // Filter by active days and transform to TaskCompletionView
+      const tasksForDay = (data || [])
+        .filter((task: any) => {
+          // Check both nested and flat structure formats
+          const activeDays = task.task_instances?.groups?.active_days || 
+                           task['task_instances.groups.active_days'] || 
+                           [];
+          const included = activeDays.includes(dayOfWeek);
+          console.log('[getDailyTasks] Task active days check:', { 
+            taskId: task.id, 
+            activeDays, 
+            dayOfWeek, 
+            included 
+          });
+          return included;
+        })
+        .map((task: any) => {
+          // Handle both nested and flat structure formats
+          const ti = task.task_instances || {};
+          const tt = ti.task_templates || {};
+          const tc = tt.task_categories || {};
+          const g = ti.groups || {};
+          
+          return {
+            id: task.id,
+            taskInstanceId: task.task_instance_id,
+            taskName: ti.custom_name || tt.name || 
+                     task['task_instances.custom_name'] || 
+                     task['task_instances.task_templates.name'] || '',
+            customDescription: ti.custom_description || tt.description ||
+                             task['task_instances.custom_description'] || 
+                             task['task_instances.task_templates.description'],
+            groupName: g.name || task['task_instances.groups.name'] || '',
+            famcoinValue: ti.famcoin_value || task['task_instances.famcoin_value'] || 0,
+            photoProofRequired: ti.photo_proof_required || task['task_instances.photo_proof_required'] || false,
+            effortScore: ti.effort_score || task['task_instances.effort_score'] || 0,
+            status: task.status,
+            photoUrl: task.photo_url,
+            completedAt: task.completed_at,
+            rejectionReason: task.rejection_reason,
+            categoryIcon: tc.icon || task['task_instances.task_templates.task_categories.icon'] || '',
+            categoryColor: tc.color || task['task_instances.task_templates.task_categories.color'] || '#000000',
+            dueDate: task.due_date || date, // fallback to the date parameter if due_date is missing
+          };
+        });
+      
+      // Sort by status priority
+      const statusOrder: Record<string, number> = {
+        'pending': 1,
+        'parent_rejected': 2,
+        'child_completed': 3,
+        'parent_approved': 4,
+        'excused': 5,
+      };
+      
+      return tasksForDay.sort((a, b) => {
+        const statusDiff = (statusOrder[a.status] || 999) - (statusOrder[b.status] || 999);
+        if (statusDiff !== 0) return statusDiff;
+        return b.effortScore - a.effortScore;
+      });
+    } catch (error) {
+      console.error('Failed to fetch daily tasks:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Mark a task as completed by the child
+   */
+  async markTaskComplete(taskCompletionId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('task_completions')
+        .update({
+          status: 'child_completed',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', taskCompletionId);
+      
+      if (error) {
+        console.error('Error marking task complete:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('Failed to mark task complete:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Upload photo proof for a task
+   */
+  async uploadTaskPhoto(
+    taskCompletionId: string,
+    photoArrayBuffer: ArrayBuffer,
+    onProgress?: (progress: number) => void
+  ): Promise<string> {
+    try {
+      console.log('[uploadTaskPhoto] Starting upload for task:', taskCompletionId);
+      
+      // Get task completion details
+      const { data: taskData, error: fetchError } = await supabase
+        .from('task_completions')
+        .select('id, child_id')
+        .eq('id', taskCompletionId)
+        .single();
+      
+      if (fetchError || !taskData) {
+        console.error('Error fetching task completion:', fetchError);
+        throw new Error('Task completion not found');
+      }
+      
+      const childId = taskData.child_id;
+      
+      // Get parent_id from children table
+      const { data: childData, error: childError } = await supabase
+        .from('children')
+        .select('parent_id')
+        .eq('id', childId)
+        .single();
+      
+      if (childError || !childData) {
+        console.error('Error fetching child data:', childError);
+        throw new Error('Child not found');
+      }
+      
+      const parentId = childData.parent_id;
+      const timestamp = Date.now();
+      
+      // Default to JPEG for ArrayBuffer uploads
+      const fileName = `photo_${timestamp}.jpg`;
+      
+      // Include bucket name in the path - this is how Supabase expects it for public URLs to work
+      const filePath = `${TASK_PHOTOS_BUCKET}/${parentId}/${childId}/${taskCompletionId}/${fileName}`;
+      
+      console.log('[uploadTaskPhoto service] Received ArrayBuffer:', {
+        byteLength: photoArrayBuffer.byteLength,
+        constructor: photoArrayBuffer.constructor.name
+      });
+      
+      console.log('[uploadTaskPhoto service] Bucket:', TASK_PHOTOS_BUCKET);
+      console.log('[uploadTaskPhoto service] Upload path:', filePath);
+      
+      // Set content type for JPEG
+      const contentType = 'image/jpeg';
+      console.log('[uploadTaskPhoto service] Content type for upload:', contentType);
+      
+      // Validate ArrayBuffer before upload
+      if (photoArrayBuffer.byteLength === 0) {
+        console.error('[uploadTaskPhoto service] CRITICAL: ArrayBuffer size is 0 before upload!');
+        throw new Error('ArrayBuffer is empty');
+      }
+      
+      console.log('[uploadTaskPhoto service] Calling supabase.storage.upload...');
+      
+      // Upload ArrayBuffer directly
+      const { error: uploadError, data: uploadData } = await supabase.storage
+        .from(TASK_PHOTOS_BUCKET)
+        .upload(filePath, photoArrayBuffer, {
+          contentType: contentType,
+          upsert: true, // Allow overwriting for retakes
+        });
+      
+      console.log('[uploadTaskPhoto service] Upload result:', {
+        error: uploadError,
+        data: uploadData
+      });
+      
+      let photoUrl: string;
+      
+      if (uploadError) {
+        console.error('Error uploading to storage:', uploadError);
+        throw new Error(`Failed to upload photo: ${uploadError.message}`);
+      } else {
+        // Get public URL from storage
+        const { data: { publicUrl } } = supabase.storage
+          .from(TASK_PHOTOS_BUCKET)
+          .getPublicUrl(filePath);
+        
+        photoUrl = publicUrl;
+        console.log('[uploadTaskPhoto] Successfully uploaded to storage, URL:', photoUrl);
+      }
+      
+      // Update task completion with photo URL
+      const { error: updateError } = await supabase
+        .from('task_completions')
+        .update({ photo_url: photoUrl })
+        .eq('id', taskCompletionId);
+      
+      if (updateError) {
+        console.error('Error updating task with photo URL:', updateError);
+        throw updateError;
+      }
+      
+      // Call progress callback if provided
+      if (onProgress) {
+        onProgress(100);
+      }
+      
+      return photoUrl;
+    } catch (error) {
+      console.error('Failed to upload task photo:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get detailed information about a specific task
+   */
+  async getTaskDetails(taskCompletionId: string): Promise<TaskDetailView> {
+    try {
+      const { data, error } = await supabase
+        .from('task_completions')
+        .select(`
+          *,
+          task_instances (
+            *,
+            task_templates (
+              *,
+              task_categories (*)
+            ),
+            groups (
+              *,
+              sequences (*)
+            )
+          )
+        `)
+        .eq('id', taskCompletionId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching task details:', error);
+        throw error;
+      }
+      
+      if (!data) {
+        throw new Error('Task not found');
+      }
+      
+      // Transform to TaskDetailView - handle potential null values
+      const ti = data.task_instances || {};
+      const tt = ti.task_templates || {};
+      const tc = tt.task_categories || {};
+      const g = ti.groups || {};
+      // const s = g.sequences || {}; // Not used currently
+      
+      return {
+        id: data.id,
+        taskInstanceId: data.task_instance_id,
+        taskName: ti.custom_name || tt.name || 'Unnamed Task',
+        customDescription: ti.custom_description || tt.description,
+        groupName: g.name || 'Unnamed Group',
+        famcoinValue: ti.famcoin_value || 0,
+        photoProofRequired: ti.photo_proof_required || false,
+        effortScore: ti.effort_score || 0,
+        status: data.status,
+        photoUrl: data.photo_url,
+        completedAt: data.completed_at,
+        rejectionReason: data.rejection_reason,
+        categoryIcon: tc.icon || '📋',
+        categoryColor: tc.color || '#6b7280',
+        templateId: ti.template_id,
+        templateName: tt.name || 'Unnamed Template',
+        templateDescription: tt.description,
+        categoryName: tc.name || 'General',
+        groupId: ti.group_id,
+        sequenceId: g.sequence_id,
+        dueDate: data.due_date,
+        isBonusTask: ti.is_bonus_task || false,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      };
+    } catch (error) {
+      console.error('Failed to get task details:', error);
+      throw error;
+    }
   }
 }
 

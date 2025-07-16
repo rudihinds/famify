@@ -26,6 +26,9 @@ interface ChildState {
   lastActivity: number;
   isLoading: boolean;
   error: string | null;
+  currentBalance: number; // Current FAMCOIN balance
+  pendingEarnings: number; // FAMCOINs waiting for parent approval
+  balanceLastUpdated: string | null;
 }
 
 const initialState: ChildState = {
@@ -38,6 +41,9 @@ const initialState: ChildState = {
   lastActivity: Date.now(),
   isLoading: false,
   error: null,
+  currentBalance: 0,
+  pendingEarnings: 0,
+  balanceLastUpdated: null,
 };
 
 // Validate PIN format
@@ -198,6 +204,50 @@ const childSlice = createSlice({
     },
     setProfile: (state, action: PayloadAction<ChildProfile>) => {
       state.profile = action.payload;
+      state.currentBalance = action.payload.famcoin_balance || 0;
+      state.balanceLastUpdated = new Date().toISOString();
+    },
+    devModeLogin: (state, action: PayloadAction<ChildProfile>) => {
+      // Dev mode: bypass PIN and set authenticated
+      state.profile = action.payload;
+      state.isAuthenticated = true;
+      state.sessionExpiry = Date.now() + 2 * 60 * 60 * 1000; // 2 hours
+      state.pinAttempts = 0;
+      state.isLocked = false;
+      state.lockUntil = null;
+      state.lastActivity = Date.now();
+      // Set initial balance from profile
+      state.currentBalance = action.payload.famcoin_balance || 0;
+      state.balanceLastUpdated = new Date().toISOString();
+    },
+    updateBalance: (state, action: PayloadAction<{ balance: number; pendingEarnings?: number }>) => {
+      state.currentBalance = action.payload.balance;
+      if (action.payload.pendingEarnings !== undefined) {
+        state.pendingEarnings = action.payload.pendingEarnings;
+      }
+      state.balanceLastUpdated = new Date().toISOString();
+      // Also update profile if it exists
+      if (state.profile) {
+        state.profile.famcoin_balance = action.payload.balance;
+      }
+    },
+    setPendingEarnings: (state, action: PayloadAction<number>) => {
+      state.pendingEarnings = action.payload;
+    },
+    setBalanceLastUpdated: (state, action: PayloadAction<string>) => {
+      state.balanceLastUpdated = action.payload;
+    },
+    addToPendingEarnings: (state, action: PayloadAction<number>) => {
+      state.pendingEarnings += action.payload;
+    },
+    confirmEarnings: (state, action: PayloadAction<number>) => {
+      // Move earnings from pending to confirmed balance
+      state.currentBalance += action.payload;
+      state.pendingEarnings = Math.max(0, state.pendingEarnings - action.payload);
+      state.balanceLastUpdated = new Date().toISOString();
+      if (state.profile) {
+        state.profile.famcoin_balance = state.currentBalance;
+      }
     },
   },
   extraReducers: (builder) => {
@@ -210,6 +260,8 @@ const childSlice = createSlice({
       .addCase(createChildProfile.fulfilled, (state, action) => {
         state.isLoading = false;
         state.profile = action.payload;
+        state.currentBalance = action.payload.famcoin_balance || 0;
+        state.balanceLastUpdated = new Date().toISOString();
       })
       .addCase(createChildProfile.rejected, (state, action) => {
         state.isLoading = false;
@@ -240,6 +292,11 @@ const childSlice = createSlice({
         state.isLocked = false;
         state.lockUntil = null;
         state.lastActivity = Date.now();
+        // Balance should be set from profile, which should already be loaded
+        if (state.profile) {
+          state.currentBalance = state.profile.famcoin_balance || 0;
+          state.balanceLastUpdated = new Date().toISOString();
+        }
       })
       .addCase(validatePinLogin.rejected, (state, action) => {
         state.isLoading = false;
@@ -256,6 +313,12 @@ export const {
   logout,
   clearError,
   setProfile,
+  devModeLogin,
+  updateBalance,
+  setPendingEarnings,
+  setBalanceLastUpdated,
+  addToPendingEarnings,
+  confirmEarnings,
 } = childSlice.actions;
 
 export default childSlice.reducer;
