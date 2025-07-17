@@ -22,10 +22,12 @@ import {
   CheckSquare,
   Circle,
   Coins,
+  Square,
 } from "lucide-react-native";
 import { format, formatDistanceToNow, addDays, subDays } from "date-fns";
 import TaskReviewModal from "../../components/TaskReviewModal";
 import DateNavigator from "../../components/DateNavigator";
+import BulkActionBar from "../../components/BulkActionBar";
 import { taskService } from "../../services/taskService";
 import { decrementPendingCount } from "../../store/slices/parentSlice";
 import { Alert } from "../../lib/alert";
@@ -62,6 +64,9 @@ interface TaskAccordionProps {
   onTaskPress: (task: TaskCompletion) => void;
   onCompleteOnBehalf?: (task: TaskCompletion) => void;
   showCompleteButton?: boolean;
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
+  onSelectionChange?: (taskId: string, selected: boolean) => void;
 }
 
 function TaskAccordion({ 
@@ -73,6 +78,9 @@ function TaskAccordion({
   onTaskPress,
   onCompleteOnBehalf,
   showCompleteButton = false,
+  selectionMode = false,
+  selectedIds = new Set(),
+  onSelectionChange,
 }: TaskAccordionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [animation] = useState(new Animated.Value(defaultOpen ? 1 : 0));
@@ -119,18 +127,38 @@ function TaskAccordion({
 
       {isOpen && (
         <View className="mt-2">
-          {tasks.map((task) => (
-            <TouchableOpacity
-              key={task.id}
-              onPress={() => onTaskPress(task)}
-              className="bg-white rounded-lg p-4 mb-2 shadow-sm"
-            >
-              <View className="flex-row items-start">
-                {/* Child Avatar */}
-                <Image
-                  source={{ uri: task.childAvatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + task.childName }}
-                  className="w-10 h-10 rounded-full mr-3"
-                />
+          {tasks.map((task) => {
+            const isSelected = selectedIds.has(task.id);
+            return (
+              <TouchableOpacity
+                key={task.id}
+                onPress={() => {
+                  if (selectionMode && onSelectionChange) {
+                    onSelectionChange(task.id, !isSelected);
+                  } else {
+                    onTaskPress(task);
+                  }
+                }}
+                className={`bg-white rounded-lg p-4 mb-2 shadow-sm ${
+                  isSelected ? 'border-2 border-indigo-500' : ''
+                }`}
+              >
+                <View className="flex-row items-start">
+                {/* Selection Checkbox or Child Avatar */}
+                {selectionMode ? (
+                  <View className="w-10 h-10 mr-3 items-center justify-center">
+                    {isSelected ? (
+                      <CheckSquare size={24} color="#4f46e5" />
+                    ) : (
+                      <Square size={24} color="#9ca3af" />
+                    )}
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: task.childAvatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + task.childName }}
+                    className="w-10 h-10 rounded-full mr-3"
+                  />
+                )}
                 
                 <View className="flex-1">
                   {/* Task Name and Child Name */}
@@ -178,8 +206,9 @@ function TaskAccordion({
                   )}
                 </View>
               </View>
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
     </View>
@@ -207,6 +236,8 @@ export default function ParentReviewsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<TaskCompletion | null>(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
 
   // Date navigation handlers
   const navigateDate = (direction: "prev" | "next") => {
@@ -352,9 +383,113 @@ export default function ParentReviewsScreen() {
     );
   };
 
+  const handleSelectionChange = (taskId: string, selected: boolean) => {
+    const newSelection = new Set(selectedTaskIds);
+    if (selected) {
+      newSelection.add(taskId);
+    } else {
+      newSelection.delete(taskId);
+    }
+    setSelectedTaskIds(newSelection);
+  };
+
+  const handleBulkApprove = async () => {
+    if (!user?.id) return;
+    
+    const selectedTasks = pendingApprovalTasks.filter(t => selectedTaskIds.has(t.id));
+    const totalValue = selectedTasks.reduce((sum, task) => sum + task.famcoinValue, 0);
+    
+    Alert.alert(
+      'Bulk Approve Tasks',
+      `Approve ${selectedTaskIds.size} tasks and award ${totalValue} total FAMCOINs?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve All',
+          onPress: async () => {
+            try {
+              const result = await taskService.bulkApproveTaskCompletions(
+                Array.from(selectedTaskIds),
+                user.id,
+                'Bulk approved'
+              );
+              
+              // Update Redux count
+              for (let i = 0; i < result.successful.length; i++) {
+                dispatch(decrementPendingCount());
+              }
+              
+              setIsSelectionMode(false);
+              setSelectedTaskIds(new Set());
+              loadData(true);
+              
+              if (result.failed.length > 0) {
+                Alert.alert(
+                  'Partial Success',
+                  `Approved ${result.successful.length} tasks. ${result.failed.length} failed.`
+                );
+              } else {
+                Alert.alert('Success', `All ${result.successful.length} tasks approved!`);
+              }
+            } catch (error) {
+              console.error('Error bulk approving:', error);
+              Alert.alert('Error', 'Failed to approve tasks');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleBulkComplete = async () => {
+    if (!user?.id) return;
+    
+    Alert.alert(
+      'Bulk Complete Tasks',
+      `Mark ${selectedTaskIds.size} tasks as completed on behalf of children?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete All',
+          onPress: async () => {
+            try {
+              const result = await taskService.bulkCompleteTasksOnBehalf(
+                Array.from(selectedTaskIds),
+                user.id
+              );
+              
+              setIsSelectionMode(false);
+              setSelectedTaskIds(new Set());
+              loadData(true);
+              
+              if (result.failed.length > 0) {
+                Alert.alert(
+                  'Partial Success',
+                  `Completed ${result.successful.length} tasks. ${result.failed.length} failed.`
+                );
+              } else {
+                Alert.alert('Success', `All ${result.successful.length} tasks completed!`);
+              }
+            } catch (error) {
+              console.error('Error bulk completing:', error);
+              Alert.alert('Error', 'Failed to complete tasks');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // Group tasks by status for display
   const pendingTasks = dateTasks.filter(t => t.status === 'pending');
   const approvedTasks = dateTasks.filter(t => t.status === 'parent_approved');
+  
+  // Calculate bulk action data
+  const selectedPendingApprovalTasks = pendingApprovalTasks.filter(t => selectedTaskIds.has(t.id));
+  const selectedPendingTasks = pendingTasks.filter(t => selectedTaskIds.has(t.id));
+  const selectedTotalValue = selectedPendingApprovalTasks.reduce((sum, task) => sum + task.famcoinValue, 0);
+  const showBulkApprove = selectedPendingApprovalTasks.length > 0;
+  const showBulkComplete = selectedPendingTasks.length > 0;
 
   if (isLoading) {
     return (
@@ -371,20 +506,44 @@ export default function ParentReviewsScreen() {
       {/* Header */}
       <View className="bg-white border-b border-gray-200 px-4 py-3">
         <View className="flex-row items-center justify-between">
-          <Text className="text-xl font-bold text-gray-900">Task Reviews</Text>
+          <Text className="text-xl font-bold text-gray-900">
+            {isSelectionMode ? `${selectedTaskIds.size} selected` : 'Task Reviews'}
+          </Text>
           <View className="flex-row items-center">
-            <View className="bg-yellow-100 rounded-full px-3 py-1">
-              <Text className="text-sm font-medium text-yellow-800">
-                {pendingApprovalTasks.length} pending
-              </Text>
-            </View>
-            <View className="bg-orange-100 rounded-full px-3 py-1 ml-2">
-              <Text className="text-sm font-medium text-orange-800">
-                {rejectedTasks.length} to redo
-              </Text>
-            </View>
+            {!isSelectionMode ? (
+              <>
+                <View className="bg-yellow-100 rounded-full px-3 py-1">
+                  <Text className="text-sm font-medium text-yellow-800">
+                    {pendingApprovalTasks.length} pending
+                  </Text>
+                </View>
+                <View className="bg-orange-100 rounded-full px-3 py-1 ml-2">
+                  <Text className="text-sm font-medium text-orange-800">
+                    {rejectedTasks.length} to redo
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <TouchableOpacity
+                onPress={() => {
+                  setIsSelectionMode(false);
+                  setSelectedTaskIds(new Set());
+                }}
+                className="px-4 py-2"
+              >
+                <Text className="text-base font-medium text-indigo-600">Cancel</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
+        {(pendingApprovalTasks.length > 0 || pendingTasks.length > 0) && !isSelectionMode && (
+          <TouchableOpacity
+            onPress={() => setIsSelectionMode(true)}
+            className="mt-2 self-start"
+          >
+            <Text className="text-sm font-medium text-indigo-600">Select Tasks</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Date Navigation */}
@@ -440,6 +599,9 @@ export default function ParentReviewsScreen() {
           color="#eab308"
           defaultOpen={true}
           onTaskPress={handleTaskPress}
+          selectionMode={isSelectionMode}
+          selectedIds={selectedTaskIds}
+          onSelectionChange={handleSelectionChange}
         />
 
         {/* Rejected Tasks (All dates) */}
@@ -450,6 +612,9 @@ export default function ParentReviewsScreen() {
           color="#ea580c"
           defaultOpen={false}
           onTaskPress={handleTaskPress}
+          selectionMode={isSelectionMode}
+          selectedIds={selectedTaskIds}
+          onSelectionChange={handleSelectionChange}
         />
 
         {/* Not Done Tasks (Date-specific) */}
@@ -461,7 +626,10 @@ export default function ParentReviewsScreen() {
           defaultOpen={false}
           onTaskPress={handleTaskPress}
           onCompleteOnBehalf={handleCompleteOnBehalf}
-          showCompleteButton={true}
+          showCompleteButton={!isSelectionMode}
+          selectionMode={isSelectionMode}
+          selectedIds={selectedTaskIds}
+          onSelectionChange={handleSelectionChange}
         />
 
         {/* Approved Tasks (Date-specific) */}
@@ -472,6 +640,9 @@ export default function ParentReviewsScreen() {
           color="#10b981"
           defaultOpen={false}
           onTaskPress={handleTaskPress}
+          selectionMode={isSelectionMode}
+          selectedIds={selectedTaskIds}
+          onSelectionChange={handleSelectionChange}
         />
 
         {/* Empty State */}
@@ -490,6 +661,22 @@ export default function ParentReviewsScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Bulk Action Bar */}
+      {isSelectionMode && (
+        <BulkActionBar
+          selectedCount={selectedTaskIds.size}
+          totalValue={selectedTotalValue}
+          onApprove={showBulkApprove ? handleBulkApprove : undefined}
+          onComplete={showBulkComplete ? handleBulkComplete : undefined}
+          onCancel={() => {
+            setIsSelectionMode(false);
+            setSelectedTaskIds(new Set());
+          }}
+          showApprove={showBulkApprove}
+          showComplete={showBulkComplete}
+        />
+      )}
 
       {/* Task Review Modal */}
       {selectedTask && (

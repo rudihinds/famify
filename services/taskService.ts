@@ -1012,6 +1012,74 @@ class TaskService {
   }
 
   /**
+   * Bulk approve multiple task completions
+   */
+  async bulkApproveTaskCompletions(
+    taskIds: string[],
+    approverId: string,
+    feedback?: string
+  ): Promise<{
+    successful: string[];
+    failed: { id: string; error: string }[];
+    totalFamcoinsAwarded: number;
+  }> {
+    const results = {
+      successful: [] as string[],
+      failed: [] as { id: string; error: string }[],
+      totalFamcoinsAwarded: 0,
+    };
+
+    // Process each task
+    for (const taskId of taskIds) {
+      try {
+        const result = await this.approveTaskCompletion(taskId, approverId, feedback);
+        results.successful.push(taskId);
+        results.totalFamcoinsAwarded += result.completion.task_instances.famcoin_value;
+      } catch (error) {
+        console.error(`Failed to approve task ${taskId}:`, error);
+        results.failed.push({
+          id: taskId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Bulk complete tasks on behalf of children
+   */
+  async bulkCompleteTasksOnBehalf(
+    taskIds: string[],
+    parentId: string
+  ): Promise<{
+    successful: string[];
+    failed: { id: string; error: string }[];
+  }> {
+    const results = {
+      successful: [] as string[],
+      failed: [] as { id: string; error: string }[],
+    };
+
+    // Process each task
+    for (const taskId of taskIds) {
+      try {
+        await this.completeTaskOnBehalf(taskId, parentId);
+        results.successful.push(taskId);
+      } catch (error) {
+        console.error(`Failed to complete task ${taskId}:`, error);
+        results.failed.push({
+          id: taskId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /**
    * Get detailed information about a specific task
    */
   async getTaskDetails(taskCompletionId: string): Promise<TaskDetailView> {
