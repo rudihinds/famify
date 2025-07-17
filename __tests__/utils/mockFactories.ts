@@ -39,15 +39,16 @@ export const createMockTaskCompletion = (overrides: Partial<TaskCompletion> = {}
 // Child mock factory
 export const createMockChild = (overrides: any = {}) => ({
   id: 'child-123',
-  parentId: 'parent-123',
+  parent_id: 'parent-123',
   name: 'Emma',
   age: 8,
-  pinHash: '1234',
-  deviceId: 'device-123',
-  famcoinBalance: 100,
-  avatarUrl: null,
-  focusAreas: ['reading', 'chores'],
-  createdAt: new Date().toISOString(),
+  pin_hash: '1234',
+  device_id: 'device-123',
+  famcoin_balance: 100,
+  avatar_url: null,
+  focus_areas: ['reading', 'chores'],
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
   ...overrides,
 });
 
@@ -81,14 +82,18 @@ export const createMockAuthState = (overrides: any = {}) => ({
 });
 
 export const createMockChildState = (overrides: any = {}) => ({
-  currentChild: null,
-  childSession: null,
-  allChildren: [],
+  profile: overrides.profile || null,
+  isAuthenticated: false,
+  pinAttempts: 0,
+  isLocked: false,
+  lockUntil: null,
+  sessionExpiry: null,
+  lastActivity: Date.now(),
   isLoading: false,
   error: null,
-  profile: overrides.currentChild || null,
   currentBalance: 0,
   pendingEarnings: 0,
+  balanceLastUpdated: null,
   ...overrides,
 });
 
@@ -138,3 +143,22 @@ export const getYesterday = () => {
   date.setDate(date.getDate() - 1);
   return date.toISOString().split('T')[0];
 };
+
+export const createMockConnectionToken = (overrides?: Partial<any>): any => ({
+  id: 'token-123',
+  parentId: 'parent-123',
+  token: 'abc123def456',
+  childName: 'Emma',
+  expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutes
+  used: false,
+  createdAt: new Date().toISOString(),
+  ...overrides,
+});
+
+export const createMockConnectionState = (overrides?: Partial<any>): any => ({
+  currentToken: null,
+  qrValue: null,
+  isGenerating: false,
+  error: null,
+  ...overrides,
+});

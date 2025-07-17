@@ -13,12 +13,12 @@ jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock
 
 // Mock Expo modules
 jest.mock("expo-router", () => ({
-  useRouter: () => ({
+  useRouter: jest.fn(() => ({
     push: jest.fn(),
     replace: jest.fn(),
     back: jest.fn(),
-  }),
-  useLocalSearchParams: () => ({}),
+  })),
+  useLocalSearchParams: jest.fn(() => ({})),
   useFocusEffect: jest.fn(),
 }));
 
@@ -171,6 +171,13 @@ jest.mock("lucide-react-native", () => {
     Lock: MockIcon,
     Calendar: MockIcon,
     MessageCircle: MockIcon,
+    Code: MockIcon,
+    Heart: MockIcon,
+    User: MockIcon,
+    BookOpen: MockIcon,
+    Home: MockIcon,
+    Gamepad2: MockIcon,
+    Palette: MockIcon,
   };
 });
 
@@ -181,6 +188,7 @@ jest.mock("./services/taskService", () => ({
     getRejectedTasksForChild: jest.fn(),
     getAllRejectedTasks: jest.fn(),
     getTaskById: jest.fn(),
+    getTaskDetails: jest.fn(),
     completeTask: jest.fn(),
     uploadTaskPhoto: jest.fn(),
     approveTaskCompletion: jest.fn(),
@@ -191,6 +199,8 @@ jest.mock("./services/taskService", () => ({
     completeTaskOnBehalf: jest.fn(),
     bulkApproveTaskCompletions: jest.fn(),
     bulkCompleteTasksOnBehalf: jest.fn(),
+    getTransactionHistory: jest.fn(),
+    getTransactionAuditTrail: jest.fn(),
   },
 }));
 

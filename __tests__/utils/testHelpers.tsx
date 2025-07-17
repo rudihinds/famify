@@ -2,21 +2,25 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
-import authReducer from '../../store/slices/authSlice';
-import childReducer from '../../store/slices/childSlice';
-import taskReducer from '../../store/slices/taskSlice';
-import parentReducer from '../../store/slices/parentSlice';
-import connectionReducer from '../../store/slices/connectionSlice';
+import authSlice from '../../store/slices/authSlice';
+import childSlice from '../../store/slices/childSlice';
+import taskSlice from '../../store/slices/taskSlice';
+import parentSlice from '../../store/slices/parentSlice';
+import connectionSlice from '../../store/slices/connectionSlice';
+import sequenceCreationSlice from '../../store/slices/sequenceCreationSlice';
+import sequencesSlice from '../../store/slices/sequencesSlice';
 
 // Create a test store with all reducers
 export const createTestStore = (preloadedState = {}) => {
   const store = configureStore({
     reducer: {
-      auth: authReducer,
-      child: childReducer,
-      tasks: taskReducer,
-      parent: parentReducer,
-      connection: connectionReducer,
+      auth: authSlice,
+      child: childSlice,
+      tasks: taskSlice,
+      parent: parentSlice,
+      connection: connectionSlice,
+      sequenceCreation: sequenceCreationSlice,
+      sequences: sequencesSlice,
     },
     preloadedState,
   });

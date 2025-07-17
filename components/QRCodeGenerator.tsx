@@ -218,17 +218,17 @@ const QRCodeGenerator = ({
         throw new Error(error.message || "Failed to create child profile");
       }
 
-      console.log("Child data created:", data);
+      console.log("Child data created:", childData);
 
       // Store the created child data
-      setChildData(data);
+      setChildData(childData);
 
       // Store the child profile in Redux store
-      dispatch(setProfile(data));
+      dispatch(setProfile(childData));
       console.log("Child profile stored in Redux store");
 
       // Notify parent component about child creation
-      onChildCreated(data);
+      onChildCreated(childData);
 
       console.log("Moving to success step");
       // Move to success step

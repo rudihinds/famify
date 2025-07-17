@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, Alert, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -29,10 +29,16 @@ export default function QRScannerScreen() {
 
   useEffect(() => {
     const getBarCodeScannerPermissions = async () => {
+      // In dev mode, pretend we have permission to show the scanner UI
+      if (isDevMode()) {
+        setHasPermission(true);
+        return;
+      }
+      
       // TODO: Uncomment when running on device with camera
       // const { status } = await BarCodeScanner.requestPermissionsAsync();
       // setHasPermission(status === "granted");
-      setHasPermission(false); // Temporary: disable scanner
+      setHasPermission(false); // Temporary: disable scanner for non-dev mode
     };
 
     getBarCodeScannerPermissions();
