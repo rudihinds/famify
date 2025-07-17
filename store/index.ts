@@ -8,6 +8,7 @@ import connectionSlice from "./slices/connectionSlice";
 import sequenceCreationSlice from "./slices/sequenceCreationSlice";
 import sequencesSlice from "./slices/sequencesSlice";
 import taskSlice from "./slices/taskSlice";
+import parentSlice from "./slices/parentSlice";
 import { sequenceApi } from "./api/sequenceApi";
 
 // Storage implementation with proper error handling
@@ -93,6 +94,7 @@ const rootReducer = combineReducers({
   sequenceCreation: persistReducer(sequenceCreationPersistConfig, sequenceCreationSlice),
   sequences: sequencesSlice,
   tasks: taskSlice,
+  parent: parentSlice,
   [sequenceApi.reducerPath]: sequenceApi.reducer,
 });
 

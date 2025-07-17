@@ -388,6 +388,205 @@ class TaskService {
   }
 
   /**
+   * Get pending task completions for parent review
+   */
+  async getPendingCompletions(parentId: string): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('task_completions')
+        .select(`
+          id,
+          due_date,
+          completed_at,
+          status,
+          photo_url,
+          child_id,
+          children!inner (
+            id,
+            name,
+            avatar_url,
+            parent_id
+          ),
+          task_instances!inner (
+            id,
+            famcoin_value,
+            photo_proof_required,
+            effort_score,
+            task_templates!inner (
+              id,
+              name,
+              description
+            )
+          )
+        `)
+        .eq('status', 'child_completed')
+        .eq('children.parent_id', parentId)
+        .order('completed_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching pending completions:', error);
+        throw error;
+      }
+
+      // Transform the data to a flatter structure
+      return (data || []).map(completion => ({
+        id: completion.id,
+        taskName: completion.task_instances.task_templates.name,
+        taskDescription: completion.task_instances.task_templates.description,
+        childId: completion.child_id,
+        childName: completion.children.name,
+        childAvatar: completion.children.avatar_url,
+        famcoinValue: completion.task_instances.famcoin_value,
+        effortScore: completion.task_instances.effort_score,
+        completedAt: completion.completed_at,
+        dueDate: completion.due_date,
+        photoUrl: completion.photo_url,
+        photoRequired: completion.task_instances.photo_proof_required,
+        status: completion.status,
+      }));
+    } catch (error) {
+      console.error('Failed to fetch pending completions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Approve a task completion
+   */
+  async approveTaskCompletion(
+    taskCompletionId: string, 
+    approverId: string,
+    feedback?: string
+  ): Promise<{ completion: any; transaction: any }> {
+    try {
+      // Start a transaction to ensure atomicity
+      const { data: completion, error: completionError } = await supabase
+        .from('task_completions')
+        .update({
+          status: 'parent_approved',
+          approved_at: new Date().toISOString(),
+          approved_by: approverId,
+          feedback: feedback || null,
+        })
+        .eq('id', taskCompletionId)
+        .select(`
+          *,
+          children (
+            id,
+            famcoin_balance
+          ),
+          task_instances (
+            famcoin_value
+          )
+        `)
+        .single();
+
+      if (completionError) {
+        console.error('Error approving task:', completionError);
+        throw completionError;
+      }
+
+      // Create the famcoin transaction
+      const { data: transaction, error: transactionError } = await supabase
+        .from('famcoin_transactions')
+        .insert({
+          child_id: completion.child_id,
+          amount: completion.task_instances.famcoin_value,
+          type: 'earned',
+          task_completion_id: taskCompletionId,
+          reason: 'Task approved by parent',
+          created_by: approverId,
+        })
+        .select()
+        .single();
+
+      if (transactionError) {
+        console.error('Error creating transaction:', transactionError);
+        throw transactionError;
+      }
+
+      // Update child's balance
+      const newBalance = (completion.children.famcoin_balance || 0) + completion.task_instances.famcoin_value;
+      const { error: balanceError } = await supabase
+        .from('children')
+        .update({ famcoin_balance: newBalance })
+        .eq('id', completion.child_id);
+
+      if (balanceError) {
+        console.error('Error updating balance:', balanceError);
+        throw balanceError;
+      }
+
+      return { completion, transaction };
+    } catch (error) {
+      console.error('Failed to approve task completion:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reject a task completion
+   */
+  async rejectTaskCompletion(
+    taskCompletionId: string, 
+    rejectedBy: string,
+    reason: string
+  ): Promise<any> {
+    try {
+      const { data, error } = await supabase
+        .from('task_completions')
+        .update({
+          status: 'parent_rejected',
+          rejected_at: new Date().toISOString(),
+          rejected_by: rejectedBy,
+          rejection_reason: reason,
+          // Clear the completed_at so child can retry
+          completed_at: null,
+          photo_url: null,
+        })
+        .eq('id', taskCompletionId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error rejecting task:', error);
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Failed to reject task completion:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get count of pending task completions
+   */
+  async getPendingCompletionsCount(parentId: string): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from('task_completions')
+        .select(`
+          id,
+          children!inner(parent_id)
+        `, { count: 'exact', head: true })
+        .eq('status', 'child_completed')
+        .eq('children.parent_id', parentId);
+
+      if (error) {
+        console.error('Error fetching pending count:', error);
+        throw error;
+      }
+
+      return count || 0;
+    } catch (error) {
+      console.error('Failed to fetch pending completions count:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get detailed information about a specific task
    */
   async getTaskDetails(taskCompletionId: string): Promise<TaskDetailView> {

@@ -2,11 +2,13 @@ import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { useSelector } from "react-redux";
-import { RootState } from "../../store";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState, AppDispatch } from "../../store";
 import { useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { Alert } from "../../lib/alert";
+import { taskService } from "../../services/taskService";
+import { decrementPendingCount, fetchPendingReviewCount } from "../../store/slices/parentSlice";
 import {
   Plus,
   QrCode,
@@ -24,13 +26,17 @@ import DevModeMenu from "../../components/DevModeMenu";
 import { isDevMode } from "../../config/development";
 
 export default function ParentHome() {
+  const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
+  const { pendingReviewCount } = useSelector((state: RootState) => state.parent);
   const devModeEnabled = isDevMode();
   const [showQRGenerator, setShowQRGenerator] = useState(false);
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
   const [children, setChildren] = useState<any[]>([]);
   const [isLoadingChildren, setIsLoadingChildren] = useState(true);
   const [isCreatingTestData, setIsCreatingTestData] = useState(false);
+  const [pendingTasks, setPendingTasks] = useState<any[]>([]);
+  const [isLoadingPendingTasks, setIsLoadingPendingTasks] = useState(false);
 
   // Fetch children data from database - extracted to reusable function
   const fetchChildrenData = async () => {
@@ -77,19 +83,68 @@ export default function ParentHome() {
     }
   };
 
+  // Fetch pending tasks
+  const fetchPendingTasks = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setIsLoadingPendingTasks(true);
+      const tasks = await taskService.getPendingCompletions(user.id);
+      
+      // Transform to match PendingActionsSection format
+      const transformedTasks = tasks.slice(0, 5).map((task: any) => ({
+        id: task.id,
+        type: "task" as const,
+        title: task.taskName,
+        childName: task.childName,
+        timestamp: formatTimeAgo(task.completedAt),
+        imageUrl: task.photoUrl,
+        famcoins: task.famcoinValue,
+      }));
+      
+      setPendingTasks(transformedTasks);
+    } catch (error) {
+      console.error("Error fetching pending tasks:", error);
+      setPendingTasks([]);
+    } finally {
+      setIsLoadingPendingTasks(false);
+    }
+  };
+
+  // Helper function to format time ago
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    
+    if (minutes < 60) {
+      return `${minutes} min ago`;
+    } else if (hours < 24) {
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else {
+      const days = Math.floor(hours / 24);
+      return `${days} day${days > 1 ? 's' : ''} ago`;
+    }
+  };
+
   // Fetch children on mount and when user changes
   useEffect(() => {
     fetchChildrenData();
+    fetchPendingTasks();
   }, [user?.id]);
   
-  // Refresh children data when screen comes into focus
-  // This ensures data is fresh when navigating back from other screens
+  // Refresh data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       if (user?.id) {
         fetchChildrenData();
+        fetchPendingTasks();
+        // Also sync the pending count
+        dispatch(fetchPendingReviewCount(user.id));
       }
-    }, [user?.id])
+    }, [user?.id, dispatch])
   );
 
   // Function to create test child data
@@ -135,24 +190,44 @@ export default function ParentHome() {
     }
   };
 
-  const pendingActions = [
-    {
-      id: "1",
-      type: "task" as const,
-      title: "Clean bedroom",
-      childName: "Alex",
-      timestamp: "5 minutes ago",
-      famcoins: 10,
-    },
-    {
-      id: "2",
-      type: "wishlist" as const,
-      title: "Extra screen time",
-      childName: "Emma",
-      timestamp: "1 hour ago",
-      famcoins: 50,
-    },
-  ];
+  // Handle task approval from quick actions
+  const handleQuickApprove = async (taskId: string) => {
+    if (!user?.id) return;
+    
+    try {
+      await taskService.approveTaskCompletion(taskId, user.id);
+      // Update Redux count immediately
+      dispatch(decrementPendingCount());
+      // Refresh the pending tasks list
+      fetchPendingTasks();
+      Alert.alert("Success", "Task approved!");
+    } catch (error) {
+      console.error("Error approving task:", error);
+      Alert.alert("Error", "Failed to approve task");
+    }
+  };
+
+  // Handle task rejection from quick actions
+  const handleQuickReject = async (taskId: string) => {
+    if (!user?.id) return;
+    
+    try {
+      // For quick rejection, use a default reason
+      await taskService.rejectTaskCompletion(
+        taskId, 
+        user.id, 
+        "Task needs to be redone. Please check the requirements."
+      );
+      // Update Redux count immediately
+      dispatch(decrementPendingCount());
+      // Refresh the pending tasks list
+      fetchPendingTasks();
+      Alert.alert("Success", "Task sent back for revision");
+    } catch (error) {
+      console.error("Error rejecting task:", error);
+      Alert.alert("Error", "Failed to reject task");
+    }
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-indigo-50">
@@ -213,7 +288,7 @@ export default function ParentHome() {
             <View className="items-center">
               <Clock size={24} color="#f59e0b" />
               <Text className="mt-1 text-2xl font-bold text-yellow-600">
-                {pendingActions.length}
+                {pendingReviewCount}
               </Text>
               <Text className="text-sm text-gray-500">Pending</Text>
             </View>
@@ -267,7 +342,12 @@ export default function ParentHome() {
         </View>
 
         {/* Pending Actions */}
-        <PendingActionsSection pendingActions={pendingActions} />
+        <PendingActionsSection 
+          pendingActions={pendingTasks}
+          onApprove={(id) => handleQuickApprove(id)}
+          onReject={(id) => handleQuickReject(id)}
+          isLoading={isLoadingPendingTasks}
+        />
 
         {/* Quick Actions */}
         <View className="p-6 m-4 bg-white rounded-2xl shadow-sm">

@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { taskService } from '../../services/taskService';
 import { transactionService } from '../../services/transactionService';
 import { updateBalance } from './childSlice';
+import { incrementPendingCount } from './parentSlice';
 import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 
@@ -115,6 +116,9 @@ export const markTaskComplete = createAsyncThunk(
         balance: state.child.currentBalance, 
         pendingEarnings 
       }));
+      
+      // Increment parent's pending review count for immediate UI feedback
+      dispatch(incrementPendingCount());
 
       return { 
         taskCompletionId, 
