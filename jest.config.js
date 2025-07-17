@@ -12,10 +12,14 @@ module.exports = {
     "!**/*.d.ts",
     "!**/node_modules/**",
   ],
-  moduleNameMapping: {
+  modulePathIgnorePatterns: [
+    "<rootDir>/android/",
+    "<rootDir>/ios/"
+  ],
+  moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
   },
   transformIgnorePatterns: [
-    "node_modules/(?!(jest-)?@?react-native|@react-native-community|@react-navigation)",
+    "node_modules/(?!((jest-)?react-native(-.*)?|@react-native(-community)?|@react-navigation|expo(-.*)?|@expo(-.*)?|@unimodules|@sentry/react-native|native-base|react-native-svg|lucide-react-native|nativewind|react-redux|@reduxjs/toolkit|immer|date-fns)/)"
   ],
 };
