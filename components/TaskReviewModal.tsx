@@ -57,12 +57,15 @@ export default function TaskReviewModal({
     setIsApproving(true);
     try {
       await onApprove(task.id, approvalFeedback || undefined);
-    } catch (error) {
-      console.error("Error approving task:", error);
-    } finally {
-      setIsApproving(false);
+      // Only reset state if successful
       setApprovalFeedback("");
       setShowApprovalFeedback(false);
+    } catch (error) {
+      console.error("Error approving task:", error);
+      // Re-throw to let parent handle it
+      throw error;
+    } finally {
+      setIsApproving(false);
     }
   };
 
@@ -72,12 +75,15 @@ export default function TaskReviewModal({
     setIsRejecting(true);
     try {
       await onReject(task.id, rejectReason.trim());
-    } catch (error) {
-      console.error("Error rejecting task:", error);
-    } finally {
-      setIsRejecting(false);
+      // Only reset state if successful
       setRejectReason("");
       setShowRejectForm(false);
+    } catch (error) {
+      console.error("Error rejecting task:", error);
+      // Re-throw to let parent handle it
+      throw error;
+    } finally {
+      setIsRejecting(false);
     }
   };
 

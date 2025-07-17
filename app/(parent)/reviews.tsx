@@ -224,13 +224,6 @@ export default function ParentReviewsScreen() {
   const [dateTasks, setDateTasks] = useState<TaskCompletion[]>([]);
   const [pendingApprovalTasks, setPendingApprovalTasks] = useState<TaskCompletion[]>([]);
   const [rejectedTasks, setRejectedTasks] = useState<TaskCompletion[]>([]);
-  const [taskStats, setTaskStats] = useState({ 
-    pending: 0, 
-    awaitingApproval: 0, 
-    rejected: 0, 
-    approved: 0, 
-    total: 0 
-  });
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -257,13 +250,8 @@ export default function ParentReviewsScreen() {
     if (!user?.id) return;
     
     try {
-      const [tasks, stats] = await Promise.all([
-        taskService.getParentReviewTasksByDate(user.id, selectedDate),
-        taskService.getParentReviewStats(user.id, selectedDate)
-      ]);
-      
+      const tasks = await taskService.getParentReviewTasksByDate(user.id, selectedDate);
       setDateTasks(tasks);
-      setTaskStats(stats);
     } catch (err) {
       console.error('Error fetching tasks for date:', err);
       setError('Failed to load tasks');
@@ -566,26 +554,26 @@ export default function ParentReviewsScreen() {
           </View>
         )}
 
-        {/* Stats Summary for Selected Date */}
+        {/* Stats Summary */}
         <View className="bg-white rounded-xl p-4 mb-4 shadow-sm">
           <Text className="text-sm font-medium text-gray-600 mb-2">
-            {selectedDate === format(new Date(), "yyyy-MM-dd") ? "Today's" : format(new Date(selectedDate), "MMMM d")} Overview
+            {selectedDate === format(new Date(), "yyyy-MM-dd") ? "Today's" : format(new Date(selectedDate), "MMMM d")} Tasks
           </Text>
           <View className="flex-row justify-between">
             <View className="items-center">
-              <Text className="text-2xl font-bold text-gray-400">{taskStats.pending}</Text>
+              <Text className="text-2xl font-bold text-gray-400">{pendingTasks.length}</Text>
               <Text className="text-xs text-gray-500">Not Done</Text>
             </View>
             <View className="items-center">
-              <Text className="text-2xl font-bold text-yellow-600">{taskStats.awaitingApproval}</Text>
+              <Text className="text-2xl font-bold text-yellow-600">{pendingApprovalTasks.length}</Text>
               <Text className="text-xs text-gray-500">To Review</Text>
             </View>
             <View className="items-center">
-              <Text className="text-2xl font-bold text-orange-600">{taskStats.rejected}</Text>
+              <Text className="text-2xl font-bold text-orange-600">{rejectedTasks.length}</Text>
               <Text className="text-xs text-gray-500">Rejected</Text>
             </View>
             <View className="items-center">
-              <Text className="text-2xl font-bold text-green-600">{taskStats.approved}</Text>
+              <Text className="text-2xl font-bold text-green-600">{approvedTasks.length}</Text>
               <Text className="text-xs text-gray-500">Approved</Text>
             </View>
           </View>
@@ -681,7 +669,7 @@ export default function ParentReviewsScreen() {
       {/* Task Review Modal */}
       {selectedTask && (
         <TaskReviewModal
-          visible={isReviewModalOpen}
+          isVisible={isReviewModalOpen}
           task={{
             ...selectedTask,
             taskDescription: selectedTask.taskDescription || '',
