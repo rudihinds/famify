@@ -181,6 +181,17 @@ class TaskService {
       console.log('[getDailyTasks] Query returned', data?.length || 0, 'records for', date);
       
       
+      // Log raw data for debugging
+      console.log('[getDailyTasks] Raw tasks from DB:', data?.length || 0);
+      if (data && data.length > 0) {
+        console.log('[getDailyTasks] Sample task:', {
+          id: data[0].id,
+          status: data[0].status,
+          rejection_reason: data[0].rejection_reason,
+          feedback: data[0].feedback
+        });
+      }
+      
       // Filter by active days and transform to TaskCompletionView
       const tasksForDay = (data || [])
         .filter((task: any) => {
@@ -221,6 +232,7 @@ class TaskService {
             photoUrl: task.photo_url,
             completedAt: task.completed_at,
             rejectionReason: task.rejection_reason,
+            feedback: task.feedback,
             categoryIcon: tc.icon || task['task_instances.task_templates.task_categories.icon'] || '',
             categoryColor: tc.color || task['task_instances.task_templates.task_categories.color'] || '#000000',
             dueDate: task.due_date || date, // fallback to the date parameter if due_date is missing
@@ -533,6 +545,12 @@ class TaskService {
     reason: string
   ): Promise<any> {
     try {
+      console.log('[rejectTaskCompletion] Starting rejection:', {
+        taskCompletionId,
+        rejectedBy,
+        reason
+      });
+
       const { data, error } = await supabase
         .from('task_completions')
         .update({
@@ -553,9 +571,71 @@ class TaskService {
         throw error;
       }
 
+      console.log('[rejectTaskCompletion] Task rejected successfully:', data);
       return data;
     } catch (error) {
       console.error('Failed to reject task completion:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all rejected tasks for a child (across all dates)
+   */
+  async getAllRejectedTasks(childId: string): Promise<TaskCompletionView[]> {
+    try {
+      const { data, error } = await supabase
+        .from('task_completions')
+        .select(`
+          *,
+          task_instances!inner (
+            *,
+            task_templates!inner (
+              *,
+              task_categories!inner (*)
+            ),
+            groups!inner (*)
+          )
+        `)
+        .eq('child_id', childId)
+        .eq('status', 'parent_rejected')
+        .order('due_date', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching rejected tasks:', error);
+        throw error;
+      }
+      
+      console.log('[getAllRejectedTasks] Found', data?.length || 0, 'rejected tasks');
+      
+      // Transform to TaskCompletionView format
+      return (data || []).map((task: any) => {
+        const ti = task.task_instances || {};
+        const tt = ti.task_templates || {};
+        const tc = tt.task_categories || {};
+        const g = ti.groups || {};
+        
+        return {
+          id: task.id,
+          taskInstanceId: task.task_instance_id,
+          taskName: ti.custom_name || tt.name || '',
+          customDescription: ti.custom_description || tt.description,
+          groupName: g.name || '',
+          famcoinValue: ti.famcoin_value || 0,
+          photoProofRequired: ti.photo_proof_required || false,
+          effortScore: ti.effort_score || 0,
+          status: task.status,
+          photoUrl: task.photo_url,
+          completedAt: task.completed_at,
+          rejectionReason: task.rejection_reason,
+          feedback: task.feedback,
+          categoryIcon: tc.icon || '',
+          categoryColor: tc.color || '#000000',
+          dueDate: task.due_date,
+        };
+      });
+    } catch (error) {
+      console.error('Failed to fetch rejected tasks:', error);
       throw error;
     }
   }
@@ -639,6 +719,7 @@ class TaskService {
         photoUrl: data.photo_url,
         completedAt: data.completed_at,
         rejectionReason: data.rejection_reason,
+        feedback: data.feedback,
         categoryIcon: tc.icon || '📋',
         categoryColor: tc.color || '#6b7280',
         templateId: ti.template_id,

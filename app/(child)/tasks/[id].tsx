@@ -27,10 +27,10 @@ import PhotoCapture from "../../../components/PhotoCapture";
 import { isAfter, startOfDay, parseISO } from "date-fns";
 
 export default function TaskDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, quickPhoto } = useLocalSearchParams<{ id: string; quickPhoto?: string }>();
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
-  const { dailyTasks, photoUploadProgress } = useSelector((state: RootState) => state.tasks);
+  const { photoUploadProgress } = useSelector((state: RootState) => state.tasks);
   const { profile } = useSelector((state: RootState) => state.child);
   const [taskDetail, setTaskDetail] = useState<TaskDetailView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,16 +39,20 @@ export default function TaskDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(true);
 
-  // Find task in Redux store
-  const task = dailyTasks.find(t => t.id === id);
-  
-  // Use task detail for accurate status since Redux might be stale
-  const currentStatus = taskDetail?.status || task?.status;
+  // Use task detail as single source of truth
+  const currentStatus = taskDetail?.status;
 
   // Load detailed task information
   useEffect(() => {
     loadTaskDetails();
   }, [id]);
+
+  // Handle quick photo parameter
+  useEffect(() => {
+    if (quickPhoto === 'true' && taskDetail && taskDetail.photoProofRequired && !loading) {
+      setShowPhotoModal(true);
+    }
+  }, [quickPhoto, taskDetail, loading]);
 
   const loadTaskDetails = async () => {
     if (!id) return;
@@ -67,7 +71,7 @@ export default function TaskDetailScreen() {
   };
 
   const handleCompleteTask = async () => {
-    if (!task || !taskDetail) return;
+    if (!taskDetail) return;
     
     // Check if task is in the future
     const taskDate = startOfDay(parseISO(taskDetail.dueDate));
@@ -88,31 +92,43 @@ export default function TaskDetailScreen() {
       return;
     }
 
-    if (task.photoProofRequired && !taskDetail.photoUrl && !task.photoUrl) {
+    if (taskDetail.photoProofRequired && !taskDetail.photoUrl) {
       setShowPhotoModal(true);
       return;
     }
 
     try {
       setCompleting(true);
-      const result = await dispatch(markTaskComplete(task.id)).unwrap();
+      const result = await dispatch(markTaskComplete(taskDetail.id)).unwrap();
       
       // Show success feedback before navigating back
       setCompleting(false);
       setError(null);
+      
+      // Refresh task details to get updated status
+      await loadTaskDetails();
+      
+      // If task was from today, also refresh daily tasks
+      if (profile?.id && taskDetail.dueDate) {
+        await dispatch(fetchDailyTasks({ 
+          childId: profile.id, 
+          date: taskDetail.dueDate 
+        }));
+      }
       
       // Brief delay to show success state
       setTimeout(() => {
         router.back();
       }, 500);
     } catch (err) {
+      console.error("Failed to complete task:", err);
       setError("Failed to complete task");
       setCompleting(false);
     }
   };
 
   const handlePhotoCapture = async (photoUri: string) => {
-    if (!task) return;
+    if (!taskDetail) return;
 
     console.log('[TaskDetail] handlePhotoCapture called with URI:', photoUri);
     console.log('[TaskDetail] URI type:', typeof photoUri);
@@ -120,7 +136,7 @@ export default function TaskDetailScreen() {
 
     try {
       await dispatch(uploadTaskPhoto({ 
-        taskCompletionId: task.id, 
+        taskCompletionId: taskDetail.id, 
         photoUri 
       })).unwrap();
       
@@ -130,11 +146,11 @@ export default function TaskDetailScreen() {
       // Reload task details to get updated status from server
       await loadTaskDetails();
       
-      // Also refresh the daily tasks to ensure Redux has latest data
-      if (profile?.id && task.dueDate) {
+      // Also refresh the daily tasks to ensure Redux has latest data if this is today's task
+      if (profile?.id && taskDetail.dueDate) {
         await dispatch(fetchDailyTasks({ 
           childId: profile.id, 
-          date: task.dueDate 
+          date: taskDetail.dueDate 
         }));
       }
     } catch (err) {
@@ -153,7 +169,7 @@ export default function TaskDetailScreen() {
     );
   }
 
-  if (!task || !taskDetail) {
+  if (!taskDetail) {
     return (
       <SafeAreaView className="flex-1 bg-gray-50">
         <View className="flex-1 items-center justify-center p-4">
@@ -191,22 +207,22 @@ export default function TaskDetailScreen() {
           <View className="flex-row items-center mb-4">
             <View
               className="w-3 h-3 rounded-full mr-2"
-              style={{ backgroundColor: task.categoryColor }}
+              style={{ backgroundColor: taskDetail.categoryColor }}
             />
             <Text className="text-sm text-gray-600">
-              {taskDetail.categoryName} • {task.groupName}
+              {taskDetail.categoryName} • {taskDetail.groupName}
             </Text>
           </View>
 
           {/* Task Name */}
           <Text className="text-2xl font-bold text-gray-900 mb-2">
-            {task.taskName}
+            {taskDetail.taskName}
           </Text>
 
           {/* Description */}
-          {task.customDescription && (
+          {taskDetail.customDescription && (
             <Text className="text-base text-gray-700 mb-4">
-              {task.customDescription}
+              {taskDetail.customDescription}
             </Text>
           )}
 
@@ -216,13 +232,13 @@ export default function TaskDetailScreen() {
             <View className="flex-row items-center">
               <Coins size={20} color="#10b981" />
               <Text className="text-xl font-bold text-green-700 ml-2">
-                {task.famcoinValue} FC
+                {taskDetail.famcoinValue} FC
               </Text>
             </View>
           </View>
 
           {/* Photo Requirement */}
-          {task.photoProofRequired && (
+          {taskDetail.photoProofRequired && (
             <View className="bg-blue-50 rounded-xl p-4 mb-4">
               <View className="flex-row items-center">
                 <Camera size={20} color="#3b82f6" />
@@ -230,9 +246,9 @@ export default function TaskDetailScreen() {
                   Photo Proof Required
                 </Text>
               </View>
-              {(taskDetail.photoUrl || task.photoUrl) && (
+              {taskDetail.photoUrl && (
                 <>
-                  {console.log('[TaskDetail] Displaying photo URL:', taskDetail.photoUrl || task.photoUrl)}
+                  {console.log('[TaskDetail] Displaying photo URL:', taskDetail.photoUrl)}
                   <View className="relative">
                     {imageLoading && (
                       <View className="absolute inset-0 w-full h-48 rounded-lg mt-3 bg-gray-200 items-center justify-center">
@@ -240,9 +256,9 @@ export default function TaskDetailScreen() {
                       </View>
                     )}
                     <Image
-                      key={taskDetail.photoUrl || task.photoUrl} // Force re-render on URL change
+                      key={taskDetail.photoUrl} // Force re-render on URL change
                       source={{ 
-                        uri: taskDetail.photoUrl || task.photoUrl,
+                        uri: taskDetail.photoUrl,
                         cache: 'reload' // Force cache refresh
                       }}
                       className="w-full h-48 rounded-lg mt-3"
@@ -274,17 +290,42 @@ export default function TaskDetailScreen() {
           )}
 
           {/* Status */}
-          {currentStatus === "parent_rejected" && task.rejectionReason && (
-            <View className="bg-red-50 rounded-xl p-4 mb-4">
+          {currentStatus === "parent_rejected" && (
+            <View className="bg-orange-50 rounded-xl p-4 mb-4 border border-orange-200">
               <View className="flex-row items-start">
-                <AlertCircle size={20} color="#ef4444" />
+                <AlertCircle size={20} color="#ea580c" />
                 <View className="flex-1 ml-2">
-                  <Text className="text-base font-medium text-red-900 mb-1">
-                    Task needs revision
+                  <Text className="text-base font-semibold text-orange-900 mb-2">
+                    Let's Try Again! 💪
                   </Text>
-                  <Text className="text-sm text-red-700">
-                    {task.rejectionReason}
-                  </Text>
+                  {(taskDetail?.rejectionReason || taskDetail?.feedback) && (
+                    <>
+                      <Text className="text-sm font-medium text-orange-800 mb-1">
+                        Parent's Feedback:
+                      </Text>
+                      <Text className="text-sm text-orange-700 mb-3">
+                        {taskDetail.rejectionReason || taskDetail.feedback}
+                      </Text>
+                    </>
+                  )}
+                  <View className="bg-orange-100 rounded-lg p-3">
+                    <Text className="text-xs font-medium text-orange-900 mb-1">
+                      💡 Tips for Success:
+                    </Text>
+                    {taskDetail.photoProofRequired ? (
+                      <Text className="text-xs text-orange-800">
+                        • Make sure the photo is clear and well-lit{'\n'}
+                        • Show the completed task clearly{'\n'}
+                        • Try a different angle if needed
+                      </Text>
+                    ) : (
+                      <Text className="text-xs text-orange-800">
+                        • Read the feedback carefully{'\n'}
+                        • Take your time to do it right{'\n'}
+                        • Ask for help if you're unsure
+                      </Text>
+                    )}
+                  </View>
                 </View>
               </View>
             </View>
@@ -351,7 +392,7 @@ export default function TaskDetailScreen() {
                   <>
                     <CheckCircle size={20} color="white" />
                     <Text className="text-white font-semibold text-lg ml-2">
-                      {task.photoProofRequired && !task.photoUrl
+                      {taskDetail.photoProofRequired && !taskDetail.photoUrl
                         ? "Add Photo"
                         : "Mark as Complete"}
                     </Text>

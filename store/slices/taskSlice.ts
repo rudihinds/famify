@@ -85,26 +85,25 @@ export const markTaskComplete = createAsyncThunk(
   'tasks/markComplete',
   async (taskCompletionId: string, { getState, dispatch }) => {
     try {
-      // Get task details to find FAMCOIN value
-      const state = getState() as any;
-      const task = state.tasks.dailyTasks.find((t: TaskCompletionView) => t.id === taskCompletionId);
-      
-      if (!task) {
-        throw new Error('Task not found');
-      }
-
       // Get child ID from state
+      const state = getState() as any;
       const childId = state.child.profile?.id;
       if (!childId) {
         throw new Error('Child profile not found');
       }
 
+      // Try to find task in Redux state (for optimistic updates)
+      const task = state.tasks.dailyTasks.find((t: TaskCompletionView) => t.id === taskCompletionId);
+      const famcoinValue = task?.famcoinValue || 0; // Use 0 as fallback, not needed by service
+      const photoUrl = task?.photoUrl;
+
       // Complete task with transaction
+      // Note: The service will fetch task details from DB, so it doesn't need accurate famcoinValue
       const result = await transactionService.completeTaskWithTransaction(
         taskCompletionId,
         childId,
-        task.famcoinValue,
-        task.photoUrl
+        famcoinValue,
+        photoUrl
       );
 
       // Note: We don't update the balance here because FAMCOINs are only earned
@@ -330,6 +329,7 @@ const taskSlice = createSlice({
         // Optimistic update for dailyTasks
         const task = state.dailyTasks.find(t => t.id === action.meta.arg);
         if (task) {
+          // If task was rejected, keep rejection reason but update status
           task.status = 'child_completed';
           task.completedAt = new Date().toISOString();
         }
@@ -348,14 +348,17 @@ const taskSlice = createSlice({
         // Revert optimistic update for dailyTasks
         const task = state.dailyTasks.find(t => t.id === action.meta.arg);
         if (task) {
-          task.status = 'pending';
+          // Check if it was previously rejected
+          const wasRejected = task.rejectionReason;
+          task.status = wasRejected ? 'parent_rejected' : 'pending';
           task.completedAt = undefined;
         }
         
         // Revert optimistic update for todayTasks
         const todayTask = state.todayTasks.find(t => t.id === action.meta.arg);
         if (todayTask) {
-          todayTask.status = 'pending';
+          const wasRejected = todayTask.rejectionReason;
+          todayTask.status = wasRejected ? 'parent_rejected' : 'pending';
           todayTask.completedAt = undefined;
         }
       });

@@ -46,6 +46,7 @@ export interface TaskCompletionView {
   photoUrl?: string;
   completedAt?: string;
   rejectionReason?: string;
+  feedback?: string;  // Parent's feedback (for both approved and rejected tasks)
   categoryIcon: string;
   categoryColor: string;
   dueDate: string;
@@ -62,6 +63,7 @@ export interface TaskDetailView extends TaskCompletionView {
   isBonusTask: boolean;
   createdAt: string;
   updatedAt: string;
+  feedback?: string;  // Inherited from TaskCompletionView but ensuring it's available
 }
 
 export interface OfflineTaskAction {

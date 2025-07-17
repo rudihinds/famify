@@ -14,7 +14,9 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Coins } from "lucide-react-native";
 import { format, addDays, subDays } from "date-fns";
 import TaskCard from "../../../components/TaskCard";
+import RejectedTasksAccordion from "../../../components/RejectedTasksAccordion";
 import DateNavigator from "../../../components/DateNavigator";
+import { taskService } from "../../../services/taskService";
 
 export default function ChildTasksScreen() {
   const router = useRouter();
@@ -25,13 +27,33 @@ export default function ChildTasksScreen() {
   );
 
   const [refreshing, setRefreshing] = useState(false);
+  const [allRejectedTasks, setAllRejectedTasks] = useState<any[]>([]);
+  const [loadingRejected, setLoadingRejected] = useState(false);
+
+  // Fetch all rejected tasks across all dates
+  const fetchRejectedTasks = useCallback(async () => {
+    if (!profile?.id) return;
+    
+    try {
+      setLoadingRejected(true);
+      const rejectedTasks = await taskService.getAllRejectedTasks(profile.id);
+      setAllRejectedTasks(rejectedTasks);
+    } catch (error) {
+      console.error('Error fetching rejected tasks:', error);
+      setAllRejectedTasks([]);
+    } finally {
+      setLoadingRejected(false);
+    }
+  }, [profile?.id]);
 
   // Reset to today's date when screen gains focus
   useFocusEffect(
     useCallback(() => {
       const today = format(new Date(), "yyyy-MM-dd");
       dispatch(setSelectedDate(today));
-    }, [dispatch])
+      // Also fetch rejected tasks when screen gains focus
+      fetchRejectedTasks();
+    }, [dispatch, fetchRejectedTasks])
   );
 
   // Load tasks when screen mounts or date changes
@@ -51,10 +73,14 @@ export default function ChildTasksScreen() {
   const onRefresh = useCallback(async () => {
     if (profile?.id) {
       setRefreshing(true);
-      await dispatch(fetchDailyTasks({ childId: profile.id, date: selectedDate }));
+      // Refresh both daily tasks and rejected tasks
+      await Promise.all([
+        dispatch(fetchDailyTasks({ childId: profile.id, date: selectedDate })),
+        fetchRejectedTasks()
+      ]);
       setRefreshing(false);
     }
-  }, [profile?.id, selectedDate, dispatch]);
+  }, [profile?.id, selectedDate, dispatch, fetchRejectedTasks]);
 
   // Date navigation
   const navigateDate = (direction: "prev" | "next") => {
@@ -69,14 +95,17 @@ export default function ChildTasksScreen() {
     dispatch(setSelectedDate(format(new Date(), "yyyy-MM-dd")));
   };
 
-  // Group tasks by status
+  // Group tasks by status (excluding rejected tasks from daily view)
   const pendingTasks = dailyTasks.filter(task => task.status === "pending");
-  const rejectedTasks = dailyTasks.filter(task => task.status === "parent_rejected");
   const completedTasks = dailyTasks.filter(
     task => task.status === "child_completed" || task.status === "parent_approved"
   );
 
-  const renderTaskSection = (title: string, tasks: typeof dailyTasks, isEmpty: string) => {
+  // Debug logging
+  console.log('[ChildTasksScreen] Total daily tasks:', dailyTasks.length);
+  console.log('[ChildTasksScreen] All rejected tasks:', allRejectedTasks.length);
+
+  const renderTaskSection = (title: string, tasks: typeof dailyTasks) => {
     if (tasks.length === 0) return null;
 
     return (
@@ -146,6 +175,13 @@ export default function ChildTasksScreen() {
           </View>
         )}
 
+        {/* Rejected Tasks Accordion - Always visible at top */}
+        <RejectedTasksAccordion
+          rejectedTasks={allRejectedTasks}
+          onTaskPress={(taskId) => router.push(`/(child)/tasks/${taskId}`)}
+          onQuickPhotoUpdate={(taskId) => router.push(`/(child)/tasks/${taskId}?quickPhoto=true`)}
+        />
+
         {dailyTasks.length === 0 ? (
           <View className="flex-1 items-center justify-center py-20">
             <Text className="text-2xl mb-2">🎉</Text>
@@ -158,26 +194,11 @@ export default function ChildTasksScreen() {
           </View>
         ) : (
           <>
-            {/* Rejected tasks first - need attention */}
-            {renderTaskSection(
-              "Need Another Try",
-              rejectedTasks,
-              "No tasks need revision"
-            )}
-
             {/* Pending tasks */}
-            {renderTaskSection(
-              "To Do",
-              pendingTasks,
-              "All tasks completed!"
-            )}
+            {renderTaskSection("To Do", pendingTasks)}
 
             {/* Completed tasks */}
-            {renderTaskSection(
-              "Completed",
-              completedTasks,
-              "No completed tasks yet"
-            )}
+            {renderTaskSection("Completed", completedTasks)}
           </>
         )}
       </ScrollView>
