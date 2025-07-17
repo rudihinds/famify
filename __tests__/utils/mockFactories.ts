@@ -12,7 +12,7 @@ export const createMockTask = (overrides: Partial<Task> = {}): Task => ({
   famcoinValue: 5,
   effortScore: 3,
   dueDate: new Date().toISOString(),
-  photoRequired: false,
+  photoProofRequired: false,
   status: 'pending',
   ...overrides,
 });
@@ -99,11 +99,14 @@ export const createMockChildState = (overrides: any = {}) => ({
 
 export const createMockTaskState = (overrides: any = {}) => ({
   dailyTasks: [],
+  todayTasks: [],
   rejectedTasks: [],
   selectedDate: new Date().toISOString().split('T')[0],
   isLoading: false,
   isRefreshing: false,
   error: null,
+  photoUploadProgress: {},
+  offlineQueue: [],
   ...overrides,
 });
 

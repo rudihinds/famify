@@ -2,6 +2,8 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
+import { persistReducer } from 'redux-persist';
+import { combineReducers } from '@reduxjs/toolkit';
 import authSlice from '../../store/slices/authSlice';
 import childSlice from '../../store/slices/childSlice';
 import taskSlice from '../../store/slices/taskSlice';
@@ -10,31 +12,77 @@ import connectionSlice from '../../store/slices/connectionSlice';
 import sequenceCreationSlice from '../../store/slices/sequenceCreationSlice';
 import sequencesSlice from '../../store/slices/sequencesSlice';
 
-// Create a test store with all reducers
+// Create a test storage that matches the production storage pattern
+const testStorage = {
+  getItem: async (key: string): Promise<string | null> => {
+    return Promise.resolve(null);
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    return Promise.resolve();
+  },
+  removeItem: async (key: string): Promise<void> => {
+    return Promise.resolve();
+  },
+};
+
+// Create a test store with all reducers that matches production structure
 export const createTestStore = (preloadedState = {}) => {
-  const store = configureStore({
-    reducer: {
-      auth: authSlice,
-      child: childSlice,
-      tasks: taskSlice,
-      parent: parentSlice,
-      connection: connectionSlice,
-      sequenceCreation: sequenceCreationSlice,
-      sequences: sequencesSlice,
-    },
-    preloadedState,
+  const persistConfig = {
+    key: 'root',
+    storage: testStorage,
+    whitelist: ['auth', 'tasks'],
+    debug: false,
+  };
+
+  // Separate persist config for sequence creation
+  const sequenceCreationPersistConfig = {
+    key: 'sequenceCreation',
+    storage: testStorage,
+    whitelist: ['selectedChildId', 'sequenceSettings', 'groups', 'selectedTasksByGroup', 'currentStep', 'isEditing', 'editingSequenceId'],
+    blacklist: ['isLoading', 'error', 'validationErrors'],
+  };
+
+  const rootReducer = combineReducers({
+    auth: authSlice,
+    child: childSlice,
+    connection: connectionSlice,
+    sequenceCreation: persistReducer(sequenceCreationPersistConfig, sequenceCreationSlice),
+    sequences: sequencesSlice,
+    tasks: taskSlice,
+    parent: parentSlice,
   });
 
-  // Mock dispatch to handle thunks
-  const originalDispatch = store.dispatch;
-  store.dispatch = jest.fn((action) => {
-    if (typeof action === 'function') {
-      // For thunks, return a resolved promise
-      return Promise.resolve({ type: 'mock/thunk' });
-    }
-    return originalDispatch(action);
-  }) as any;
+  const persistedReducer = persistReducer(persistConfig, rootReducer);
 
+  const store = configureStore({
+    reducer: persistedReducer,
+    preloadedState,
+    // Disable default middleware in tests to avoid serialization checks
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware({
+        serializableCheck: {
+          ignoredActions: [
+            'persist/PERSIST',
+            'persist/REHYDRATE',
+            'persist/REGISTER',
+            'persist/PURGE',
+            'persist/FLUSH',
+            'persist/PAUSE',
+            'FLUSH',
+            'REHYDRATE',
+            'PAUSE',
+            'PERSIST',
+            'PURGE',
+            'REGISTER',
+          ],
+        },
+        immutableCheck: false,
+      }),
+  });
+
+  // Keep original dispatch for real Redux thunk execution
+  // This allows actual Redux state updates to occur during tests
+  // Services are still mocked via jest.mock() in jest-setup.js
   return store;
 };
 

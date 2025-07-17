@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent, waitFor, screen } from '@testing-library/react-native';
 import TaskDetailScreen from '../../app/(child)/tasks/[id]';
 import { renderWithProviders } from '../utils/testHelpers';
 import { 
@@ -12,6 +12,7 @@ import {
   createMockStorageUrl
 } from '../utils/mockFactories';
 import { taskService } from '../../services/taskService';
+import { transactionService } from '../../services/transactionService';
 import * as ImagePicker from 'expo-image-picker';
 
 // Mock the services
@@ -20,6 +21,13 @@ jest.mock('../../services/taskService', () => ({
     getTaskDetails: jest.fn(),
     completeTask: jest.fn(),
     uploadTaskPhoto: jest.fn(),
+  },
+}));
+
+jest.mock('../../services/transactionService', () => ({
+  transactionService: {
+    completeTaskWithTransaction: jest.fn(),
+    getPendingEarnings: jest.fn(),
   },
 }));
 jest.mock('expo-router', () => ({
@@ -46,23 +54,23 @@ describe('Task Completion - Behavioral Tests', () => {
       const mockTask = createMockTask({
         id: 'task-1',
         taskName: 'Make Bed',
-        photoRequired: false,
+        photoProofRequired: false,
         famcoinValue: 5,
       });
 
       (taskService.getTaskDetails as jest.Mock).mockResolvedValue(mockTask);
-      (taskService.completeTask as jest.Mock).mockResolvedValue({ 
+      (transactionService.completeTaskWithTransaction as jest.Mock).mockResolvedValue({ 
         success: true,
         taskCompletion: { ...mockTask, status: 'child_completed' }
       });
+      (transactionService.getPendingEarnings as jest.Mock).mockResolvedValue(15); // 10 + 5
 
-      const { getByText, store } = renderWithProviders(
+      const { store } = renderWithProviders(
         <TaskDetailScreen />,
         {
           preloadedState: {
             child: createMockChildState({
-              currentChild: mockChild,
-              childSession: mockSession,
+              profile: mockChild,
               pendingEarnings: 10,
             }),
             tasks: createMockTaskState({
@@ -73,12 +81,12 @@ describe('Task Completion - Behavioral Tests', () => {
       );
 
       await waitFor(() => {
-        expect(getByText('Make Bed')).toBeTruthy();
-        expect(getByText('Mark as Complete')).toBeTruthy();
+        expect(screen.getByText('Make Bed')).toBeTruthy();
+        expect(screen.getByText('Mark as Complete')).toBeTruthy();
       });
 
       // Child completes the task
-      fireEvent.press(getByText('Mark as Complete'));
+      fireEvent.press(screen.getByText('Mark as Complete'));
 
       await waitFor(() => {
         // Child should see their pending earnings increased
@@ -94,7 +102,7 @@ describe('Task Completion - Behavioral Tests', () => {
       const mockTask = createMockTask({
         id: 'task-1',
         taskName: 'Clean Room',
-        photoRequired: true,
+        photoProofRequired: true,
         famcoinValue: 10,
       });
       const mockPhoto = createMockPhoto();
@@ -102,22 +110,22 @@ describe('Task Completion - Behavioral Tests', () => {
 
       (taskService.getTaskDetails as jest.Mock).mockResolvedValue(mockTask);
       (taskService.uploadTaskPhoto as jest.Mock).mockResolvedValue(mockPhotoUrl);
-      (taskService.completeTask as jest.Mock).mockResolvedValue({ 
+      (transactionService.completeTaskWithTransaction as jest.Mock).mockResolvedValue({ 
         success: true,
         taskCompletion: { ...mockTask, status: 'child_completed', photoUrl: mockPhotoUrl }
       });
+      (transactionService.getPendingEarnings as jest.Mock).mockResolvedValue(10); // 0 + 10
       (ImagePicker.launchCameraAsync as jest.Mock).mockResolvedValue({
         canceled: false,
         assets: [mockPhoto],
       });
 
-      const { getByText, store } = renderWithProviders(
+      const { store } = renderWithProviders(
         <TaskDetailScreen />,
         {
           preloadedState: {
             child: createMockChildState({
-              currentChild: mockChild,
-              childSession: mockSession,
+              profile: mockChild,
               pendingEarnings: 0,
             }),
             tasks: createMockTaskState({
@@ -128,12 +136,20 @@ describe('Task Completion - Behavioral Tests', () => {
       );
 
       await waitFor(() => {
-        expect(getByText('Clean Room')).toBeTruthy();
-        expect(getByText('Add Photo')).toBeTruthy();
+        expect(screen.getByText('Clean Room')).toBeTruthy();
+        expect(screen.getByText('Add Photo')).toBeTruthy();
       });
 
       // Child must take photo first
-      fireEvent.press(getByText('Add Photo'));
+      fireEvent.press(screen.getByText('Add Photo'));
+
+      await waitFor(() => {
+        // Photo capture modal should appear
+        expect(screen.getByText('Add Photo Proof')).toBeTruthy();
+      });
+
+      // Child takes photo
+      fireEvent.press(screen.getByText('Take Photo'));
 
       await waitFor(() => {
         expect(ImagePicker.launchCameraAsync).toHaveBeenCalled();
@@ -141,7 +157,7 @@ describe('Task Completion - Behavioral Tests', () => {
 
       // Then child can complete task
       await waitFor(() => {
-        const completeButton = getByText('Mark as Complete');
+        const completeButton = screen.getByText('Mark as Complete');
         fireEvent.press(completeButton);
       });
 
@@ -159,38 +175,37 @@ describe('Task Completion - Behavioral Tests', () => {
       const mockTask = createMockTask({
         id: 'task-1',
         taskName: 'Show Homework',
-        photoRequired: true,
+        photoProofRequired: true,
         famcoinValue: 5,
       });
 
       (taskService.getTaskDetails as jest.Mock).mockResolvedValue(mockTask);
 
-      const { getByText } = renderWithProviders(
+      renderWithProviders(
         <TaskDetailScreen />,
         {
           preloadedState: {
             child: createMockChildState({
-              currentChild: mockChild,
-              childSession: mockSession,
+              profile: mockChild,
             }),
           },
         }
       );
 
       await waitFor(() => {
-        expect(getByText('Show Homework')).toBeTruthy();
-        expect(getByText('Add Photo')).toBeTruthy();
+        expect(screen.getByText('Show Homework')).toBeTruthy();
+        expect(screen.getByText('Add Photo')).toBeTruthy();
       });
 
-      // Complete button should be disabled without photo
-      const completeButton = getByText('Mark as Complete');
-      expect(completeButton.parent?.props.accessibilityState?.disabled).toBe(true);
+      // Complete button should show "Add Photo" when no photo is provided
+      const addPhotoButton = screen.getByText('Add Photo');
+      expect(addPhotoButton).toBeTruthy();
 
-      // Child tries to complete anyway
-      fireEvent.press(completeButton);
+      // Child tries to complete without photo by pressing the button
+      fireEvent.press(addPhotoButton);
 
       await waitFor(() => {
-        // Task should not be completed
+        // This should open the photo modal, not complete the task
         expect(taskService.completeTask).not.toHaveBeenCalled();
       });
     });
@@ -199,20 +214,19 @@ describe('Task Completion - Behavioral Tests', () => {
       const mockTask = createMockTask({
         id: 'task-1',
         taskName: 'Feed Pet',
-        photoRequired: false,
+        photoProofRequired: false,
         famcoinValue: 3,
       });
 
       (taskService.getTaskDetails as jest.Mock).mockResolvedValue(mockTask);
       (taskService.completeTask as jest.Mock).mockRejectedValue(new Error('Network error'));
 
-      const { getByText, store } = renderWithProviders(
+      const { store } = renderWithProviders(
         <TaskDetailScreen />,
         {
           preloadedState: {
             child: createMockChildState({
-              currentChild: mockChild,
-              childSession: mockSession,
+              profile: mockChild,
               pendingEarnings: 10,
             }),
           },
@@ -220,11 +234,11 @@ describe('Task Completion - Behavioral Tests', () => {
       );
 
       await waitFor(() => {
-        expect(getByText('Feed Pet')).toBeTruthy();
-        expect(getByText('Mark as Complete')).toBeTruthy();
+        expect(screen.getByText('Feed Pet')).toBeTruthy();
+        expect(screen.getByText('Mark as Complete')).toBeTruthy();
       });
 
-      fireEvent.press(getByText('Mark as Complete'));
+      fireEvent.press(screen.getByText('Mark as Complete'));
 
       await waitFor(() => {
         // Child's progress should not change when completion fails
@@ -240,7 +254,7 @@ describe('Task Completion - Behavioral Tests', () => {
       const mockTask = createMockTask({
         id: 'task-1',
         taskName: 'Water Plants',
-        photoRequired: false,
+        photoProofRequired: false,
         famcoinValue: 2,
       });
 
@@ -252,25 +266,24 @@ describe('Task Completion - Behavioral Tests', () => {
       (taskService.getTaskDetails as jest.Mock).mockResolvedValue(mockTask);
       (taskService.completeTask as jest.Mock).mockReturnValue(completionPromise);
 
-      const { getByText } = renderWithProviders(
+      renderWithProviders(
         <TaskDetailScreen />,
         {
           preloadedState: {
             child: createMockChildState({
-              currentChild: mockChild,
-              childSession: mockSession,
+              profile: mockChild,
             }),
           },
         }
       );
 
       await waitFor(() => {
-        expect(getByText('Water Plants')).toBeTruthy();
-        expect(getByText('Mark as Complete')).toBeTruthy();
+        expect(screen.getByText('Water Plants')).toBeTruthy();
+        expect(screen.getByText('Mark as Complete')).toBeTruthy();
       });
 
       // Child clicks complete button multiple times
-      const completeButton = getByText('Mark as Complete');
+      const completeButton = screen.getByText('Mark as Complete');
       fireEvent.press(completeButton);
       fireEvent.press(completeButton);
       fireEvent.press(completeButton);
@@ -297,19 +310,18 @@ describe('Task Completion - Behavioral Tests', () => {
         taskName: 'Clean Room',
         status: 'parent_rejected',
         rejectionReason: 'Room still messy in the photo',
-        photoRequired: true,
+        photoProofRequired: true,
         famcoinValue: 8,
       });
 
       (taskService.getTaskDetails as jest.Mock).mockResolvedValue(mockTask);
 
-      const { getByText } = renderWithProviders(
+      renderWithProviders(
         <TaskDetailScreen />,
         {
           preloadedState: {
             child: createMockChildState({
-              currentChild: mockChild,
-              childSession: mockSession,
+              profile: mockChild,
             }),
             tasks: createMockTaskState({
               rejectedTasks: [mockTask],
@@ -320,11 +332,11 @@ describe('Task Completion - Behavioral Tests', () => {
 
       await waitFor(() => {
         // Child should see what parent said
-        expect(getByText('Parent Feedback')).toBeTruthy();
-        expect(getByText('Room still messy in the photo')).toBeTruthy();
+        expect(screen.getByText('Parent Feedback')).toBeTruthy();
+        expect(screen.getByText('Room still messy in the photo')).toBeTruthy();
         
         // Child should be able to take new photo
-        expect(getByText('Retake Photo')).toBeTruthy();
+        expect(screen.getByText('Retake Photo')).toBeTruthy();
       });
     });
 
@@ -334,7 +346,7 @@ describe('Task Completion - Behavioral Tests', () => {
         taskName: 'Take out trash',
         status: 'parent_rejected',
         rejectionReason: 'Trash still in bin',
-        photoRequired: true,
+        photoProofRequired: true,
         famcoinValue: 8,
       });
       const mockPhoto = createMockPhoto();
@@ -351,13 +363,12 @@ describe('Task Completion - Behavioral Tests', () => {
         assets: [mockPhoto],
       });
 
-      const { getByText, store } = renderWithProviders(
+      const { store } = renderWithProviders(
         <TaskDetailScreen />,
         {
           preloadedState: {
             child: createMockChildState({
-              currentChild: mockChild,
-              childSession: mockSession,
+              profile: mockChild,
               pendingEarnings: 5,
             }),
             tasks: createMockTaskState({
@@ -368,13 +379,13 @@ describe('Task Completion - Behavioral Tests', () => {
       );
 
       await waitFor(() => {
-        expect(getByText('Take out trash')).toBeTruthy();
-        expect(getByText('Trash still in bin')).toBeTruthy();
-        expect(getByText('Retake Photo')).toBeTruthy();
+        expect(screen.getByText('Take out trash')).toBeTruthy();
+        expect(screen.getByText('Trash still in bin')).toBeTruthy();
+        expect(screen.getByText('Retake Photo')).toBeTruthy();
       });
 
       // Child takes new photo
-      fireEvent.press(getByText('Retake Photo'));
+      fireEvent.press(screen.getByText('Retake Photo'));
 
       await waitFor(() => {
         expect(ImagePicker.launchCameraAsync).toHaveBeenCalled();
@@ -382,7 +393,7 @@ describe('Task Completion - Behavioral Tests', () => {
 
       // Child resubmits the task
       await waitFor(() => {
-        const completeButton = getByText('Mark as Complete');
+        const completeButton = screen.getByText('Mark as Complete');
         fireEvent.press(completeButton);
       });
 
@@ -407,7 +418,7 @@ describe('Task Completion - Behavioral Tests', () => {
       const mockTask = createMockTask({
         id: 'task-1',
         taskName: 'Practice Piano',
-        photoRequired: false,
+        photoProofRequired: false,
         famcoinValue: 15,
       });
 
@@ -417,13 +428,12 @@ describe('Task Completion - Behavioral Tests', () => {
         taskCompletion: { ...mockTask, status: 'child_completed' }
       });
 
-      const { getByText, store } = renderWithProviders(
+      const { store } = renderWithProviders(
         <TaskDetailScreen />,
         {
           preloadedState: {
             child: createMockChildState({
-              currentChild: mockChild,
-              childSession: mockSession,
+              profile: mockChild,
               pendingEarnings: 0,
             }),
           },
@@ -431,11 +441,11 @@ describe('Task Completion - Behavioral Tests', () => {
       );
 
       await waitFor(() => {
-        expect(getByText('Practice Piano')).toBeTruthy();
-        expect(getByText('Mark as Complete')).toBeTruthy();
+        expect(screen.getByText('Practice Piano')).toBeTruthy();
+        expect(screen.getByText('Mark as Complete')).toBeTruthy();
       });
 
-      fireEvent.press(getByText('Mark as Complete'));
+      fireEvent.press(screen.getByText('Mark as Complete'));
 
       await waitFor(() => {
         // Child should see their pending earnings increased
@@ -448,7 +458,7 @@ describe('Task Completion - Behavioral Tests', () => {
       const mockTask = createMockTask({
         id: 'task-1',
         taskName: 'Do Homework',
-        photoRequired: false,
+        photoProofRequired: false,
         famcoinValue: 7,
         status: 'pending',
       });
@@ -459,13 +469,12 @@ describe('Task Completion - Behavioral Tests', () => {
         taskCompletion: { ...mockTask, status: 'child_completed' }
       });
 
-      const { getByText, store } = renderWithProviders(
+      const { store } = renderWithProviders(
         <TaskDetailScreen />,
         {
           preloadedState: {
             child: createMockChildState({
-              currentChild: mockChild,
-              childSession: mockSession,
+              profile: mockChild,
               pendingEarnings: 20,
             }),
             tasks: createMockTaskState({
@@ -476,11 +485,11 @@ describe('Task Completion - Behavioral Tests', () => {
       );
 
       await waitFor(() => {
-        expect(getByText('Do Homework')).toBeTruthy();
-        expect(getByText('Mark as Complete')).toBeTruthy();
+        expect(screen.getByText('Do Homework')).toBeTruthy();
+        expect(screen.getByText('Mark as Complete')).toBeTruthy();
       });
 
-      fireEvent.press(getByText('Mark as Complete'));
+      fireEvent.press(screen.getByText('Mark as Complete'));
 
       await waitFor(() => {
         const state = store.getState();

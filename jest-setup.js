@@ -19,7 +19,12 @@ jest.mock("expo-router", () => ({
     back: jest.fn(),
   })),
   useLocalSearchParams: jest.fn(() => ({})),
-  useFocusEffect: jest.fn(),
+  useFocusEffect: jest.fn((callback) => {
+    // Execute the callback immediately for tests
+    if (typeof callback === 'function') {
+      callback();
+    }
+  }),
 }));
 
 jest.mock("expo-secure-store", () => ({
@@ -38,6 +43,7 @@ jest.mock("expo-camera", () => ({
       { granted: true },
       jest.fn().mockResolvedValue({ granted: true }),
     ]),
+    requestCameraPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
   },
   CameraView: "CameraView",
   CameraType: {
@@ -112,14 +118,23 @@ jest.mock("./lib/supabase", () => ({
 }));
 
 // Mock Alert separately
-jest.mock("react-native/Libraries/Alert/Alert", () => ({
-  alert: jest.fn((title, message, buttons) => {
-    // Automatically call the first button's onPress if it exists
-    if (buttons && buttons[0] && buttons[0].onPress) {
-      buttons[0].onPress();
-    }
-  }),
-}));
+const mockAlert = jest.fn((title, message, buttons) => {
+  // Automatically call the first button's onPress if it exists
+  if (buttons && buttons[0] && buttons[0].onPress) {
+    buttons[0].onPress();
+  }
+});
+
+// Create Alert object that can be modified
+const AlertObject = {
+  alert: mockAlert,
+};
+
+// Mock react-native Alert module
+jest.mock("react-native/Libraries/Alert/Alert", () => AlertObject);
+
+// Make Alert available globally for tests
+global.Alert = AlertObject;
 
 
 // Mock NativeWind
@@ -127,11 +142,8 @@ jest.mock("nativewind", () => ({
   styled: (component) => component,
 }));
 
-// Mock react-native-css-interop
-jest.mock("react-native-css-interop", () => ({
-  createCssInteropWrapper: () => (component) => component,
-  createInteropElement: jest.requireActual("react").createElement,
-}));
+// Mock react-native-css-interop - removed for now due to jest transform issues
+// jest.mock("react-native-css-interop", () => ({}));
 
 // Mock SafeAreaView
 jest.mock("react-native-safe-area-context", () => ({
@@ -178,6 +190,8 @@ jest.mock("lucide-react-native", () => {
     Home: MockIcon,
     Gamepad2: MockIcon,
     Palette: MockIcon,
+    Images: MockIcon,
+    RotateCcw: MockIcon,
   };
 });
 
@@ -204,5 +218,41 @@ jest.mock("./services/taskService", () => ({
   },
 }));
 
+// Mock transaction service
+jest.mock("./services/transactionService", () => ({
+  transactionService: {
+    completeTaskWithTransaction: jest.fn(),
+    getPendingEarnings: jest.fn(),
+    getBalance: jest.fn(),
+    syncBalanceWithBackend: jest.fn(),
+    processPendingTransactions: jest.fn(),
+    getTransactionHistory: jest.fn(),
+    getTransactionAuditTrail: jest.fn(),
+  },
+}));
+
 // Mock date-fns if needed
 global.Date.now = jest.fn(() => new Date("2024-01-15T10:00:00Z").getTime());
+
+// Mock redux-persist storage for tests
+jest.mock('redux-persist/lib/storage', () => ({
+  getItem: jest.fn(() => Promise.resolve(null)),
+  setItem: jest.fn(() => Promise.resolve()),
+  removeItem: jest.fn(() => Promise.resolve()),
+}));
+
+// Mock the production store to prevent direct imports
+jest.mock('./store', () => ({
+  store: {
+    dispatch: jest.fn(),
+    getState: jest.fn(() => ({})),
+    subscribe: jest.fn(),
+    replaceReducer: jest.fn(),
+  },
+  persistor: {
+    purge: jest.fn(),
+    flush: jest.fn(),
+    pause: jest.fn(),
+    persist: jest.fn(),
+  },
+}));
