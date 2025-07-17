@@ -173,6 +173,10 @@ class TransactionService {
       const updateData: any = {
         status: 'child_completed',
         completed_at: new Date().toISOString(),
+        // Clear rejection fields when re-completing a rejected task
+        rejection_reason: null,
+        rejected_at: null,
+        rejected_by: null,
       };
 
       if (photoUrl) {

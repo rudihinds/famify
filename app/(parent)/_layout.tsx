@@ -1,14 +1,37 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Tabs } from "expo-router";
-import { View } from "react-native";
+import { View, Text } from "react-native";
 import {
   Home,
   CheckSquare,
   Gift,
   DollarSign,
+  ClipboardCheck,
 } from "lucide-react-native";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState, AppDispatch } from "../../store";
+import { fetchPendingReviewCount } from "../../store/slices/parentSlice";
 
 export default function ParentLayout() {
+  const dispatch = useDispatch<AppDispatch>();
+  const { user } = useSelector((state: RootState) => state.auth);
+  const { pendingReviewCount } = useSelector((state: RootState) => state.parent);
+
+  // Fetch pending count on mount and poll
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // Initial fetch
+    dispatch(fetchPendingReviewCount(user.id));
+    
+    // Poll every 30 seconds for sync
+    const interval = setInterval(() => {
+      dispatch(fetchPendingReviewCount(user.id));
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [user?.id, dispatch]);
+
   return (
     <Tabs
       screenOptions={{
@@ -47,6 +70,28 @@ export default function ParentLayout() {
           title: "Tasks",
           tabBarIcon: ({ color, size }) => (
             <CheckSquare size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="reviews"
+        options={{
+          title: "Reviews",
+          tabBarIcon: ({ color, size, focused }) => (
+            <View>
+              <ClipboardCheck size={size} color={color} />
+              {pendingReviewCount > 0 && (
+                <View
+                  className={`absolute -top-1 -right-1 ${
+                    focused ? "bg-indigo-600" : "bg-red-500"
+                  } rounded-full min-w-[18px] h-[18px] items-center justify-center`}
+                >
+                  <Text className="text-white text-xs font-bold">
+                    {pendingReviewCount > 99 ? "99+" : pendingReviewCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           ),
         }}
       />

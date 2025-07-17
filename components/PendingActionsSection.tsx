@@ -16,47 +16,14 @@ interface PendingActionsSectionProps {
   pendingActions?: PendingAction[];
   onApprove?: (id: string, type: string) => void;
   onReject?: (id: string, type: string) => void;
+  isLoading?: boolean;
 }
 
 const PendingActionsSection = ({
-  pendingActions = [
-    {
-      id: "1",
-      type: "task",
-      title: "Make Bed",
-      childName: "Emma",
-      timestamp: "10 min ago",
-      imageUrl:
-        "https://images.unsplash.com/photo-1540518614846-7eded433c457?w=400&q=75",
-      famcoins: 5,
-    },
-    {
-      id: "2",
-      type: "wishlist",
-      title: "New Toy Robot",
-      childName: "Jack",
-      timestamp: "1 hour ago",
-      famcoins: 50,
-    },
-    {
-      id: "3",
-      type: "redemption",
-      title: "Ice Cream Trip",
-      childName: "Emma",
-      timestamp: "2 hours ago",
-      famcoins: 20,
-    },
-    {
-      id: "4",
-      type: "task",
-      title: "Homework",
-      childName: "Jack",
-      timestamp: "30 min ago",
-      famcoins: 10,
-    },
-  ],
+  pendingActions = [],
   onApprove = (id, type) => console.log(`Approved ${type} with id ${id}`),
   onReject = (id, type) => console.log(`Rejected ${type} with id ${id}`),
+  isLoading = false,
 }: PendingActionsSectionProps) => {
   // Helper function to get the appropriate icon based on action type
   const getActionIcon = (type: string) => {
@@ -87,13 +54,18 @@ const PendingActionsSection = ({
   };
 
   return (
-    <View
-      className="bg-white p-4 rounded-lg shadow-sm w-full"
-      style={{ backgroundColor: "#FFFFFF" }}
-    >
+    <View className="mx-4 mb-4">
+      <View
+        className="bg-white p-4 rounded-2xl shadow-sm"
+        style={{ backgroundColor: "#FFFFFF" }}
+      >
       <Text className="text-lg font-bold mb-3">Pending Actions</Text>
 
-      {pendingActions.length === 0 ? (
+      {isLoading ? (
+        <View className="py-6 items-center justify-center">
+          <Text className="text-gray-500">Loading pending tasks...</Text>
+        </View>
+      ) : pendingActions.length === 0 ? (
         <View className="py-6 items-center justify-center">
           <Text className="text-gray-500">No pending actions</Text>
         </View>
@@ -167,6 +139,7 @@ const PendingActionsSection = ({
           ))}
         </ScrollView>
       )}
+      </View>
     </View>
   );
 };
