@@ -89,7 +89,7 @@ export default function ParentHome() {
     
     try {
       setIsLoadingPendingTasks(true);
-      const tasks = await taskService.getPendingCompletions(user.id);
+      const tasks = await taskService.getParentPendingApprovalTasks(user.id);
       
       // Transform to match PendingActionsSection format
       const transformedTasks = tasks.slice(0, 5).map((task: any) => ({
