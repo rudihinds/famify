@@ -15,8 +15,8 @@ export default function RejectedTasksAccordion({
   onTaskPress,
   onQuickPhotoUpdate,
 }: RejectedTasksAccordionProps) {
-  const [isOpen, setIsOpen] = useState(true); // Default to open so kids see them
-  const [animation] = useState(new Animated.Value(1));
+  const [isOpen, setIsOpen] = useState(false); // Default to closed, user can click to expand
+  const [animation] = useState(new Animated.Value(0)); // Start at 0 for closed state
 
   const toggleAccordion = () => {
     const toValue = isOpen ? 0 : 1;

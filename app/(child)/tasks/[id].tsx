@@ -118,7 +118,8 @@ export default function TaskDetailScreen() {
       
       // Brief delay to show success state
       setTimeout(() => {
-        router.back();
+        // Always navigate to tasks page for consistent UX
+        router.replace('/(child)/tasks');
       }, 500);
     } catch (err) {
       console.error("Failed to complete task:", err);
