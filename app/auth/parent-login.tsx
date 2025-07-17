@@ -128,10 +128,16 @@ export default function ParentLoginScreen() {
               {isDevMode && testEmail && testPassword && (
                 <>
                   <TouchableOpacity
-                    onPress={() => {
-                      setEmail(testEmail);
-                      setPassword(testPassword);
-                      handleLogin();
+                    onPress={async () => {
+                      try {
+                        await dispatch(signInParent({ email: testEmail, password: testPassword })).unwrap();
+                        router.replace("/parent/dashboard");
+                      } catch (error: any) {
+                        // For dev mode, just log the error instead of showing alert
+                        console.error("Dev login failed:", error);
+                        setEmail(testEmail);
+                        setPassword(testPassword);
+                      }
                     }}
                     className="bg-yellow-500 py-3 px-6 rounded-xl mb-4"
                     disabled={isLoading}

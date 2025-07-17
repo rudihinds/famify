@@ -247,10 +247,10 @@ export default function TaskReviewModal({
                 {/* Action Buttons */}
                 <View className="p-4 border-t border-gray-200">
                   {!showRejectForm ? (
-                    <View className="flex-row space-x-3">
+                    <View className="flex-row gap-3">
                       <TouchableOpacity
                         onPress={() => setShowRejectForm(true)}
-                        className="flex-1 bg-red-50 rounded-xl py-4 items-center"
+                        className="flex-1 bg-red-50 border border-red-200 rounded-xl py-4 items-center"
                         disabled={isApproving || isRejecting}
                       >
                         <View className="flex-row items-center">
@@ -269,7 +269,7 @@ export default function TaskReviewModal({
                             setShowApprovalFeedback(true);
                           }
                         }}
-                        className="flex-1 bg-green-500 rounded-xl py-4 items-center"
+                        className="flex-1 bg-green-500 rounded-xl py-4 items-center shadow-sm"
                         disabled={isApproving || isRejecting}
                       >
                         {isApproving ? (
@@ -285,13 +285,13 @@ export default function TaskReviewModal({
                       </TouchableOpacity>
                     </View>
                   ) : (
-                    <View className="flex-row space-x-3">
+                    <View className="flex-row gap-3">
                       <TouchableOpacity
                         onPress={() => {
                           setShowRejectForm(false);
                           setRejectReason("");
                         }}
-                        className="flex-1 bg-gray-200 rounded-xl py-4 items-center"
+                        className="flex-1 bg-gray-100 border border-gray-200 rounded-xl py-4 items-center"
                         disabled={isRejecting}
                       >
                         <Text className="text-gray-700 font-semibold">Cancel</Text>
@@ -299,7 +299,7 @@ export default function TaskReviewModal({
 
                       <TouchableOpacity
                         onPress={handleReject}
-                        className={`flex-1 rounded-xl py-4 items-center ${
+                        className={`flex-1 rounded-xl py-4 items-center shadow-sm ${
                           rejectReason.trim() ? "bg-red-500" : "bg-gray-300"
                         }`}
                         disabled={!rejectReason.trim() || isRejecting}

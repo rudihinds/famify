@@ -20,6 +20,7 @@ import {
   AlertCircle, 
   ChevronDown,
   CheckSquare,
+  CheckCircle,
   Circle,
   Coins,
   Square,
@@ -139,73 +140,110 @@ function TaskAccordion({
                     onTaskPress(task);
                   }
                 }}
-                className={`bg-white rounded-lg p-4 mb-2 shadow-sm ${
-                  isSelected ? 'border-2 border-indigo-500' : ''
+                className={`bg-white rounded-xl mb-3 shadow-sm overflow-hidden ${
+                  isSelected ? 'ring-2 ring-indigo-500' : 'border border-gray-100'
                 }`}
               >
-                <View className="flex-row items-start">
-                {/* Selection Checkbox or Child Avatar */}
-                {selectionMode ? (
-                  <View className="w-10 h-10 mr-3 items-center justify-center">
-                    {isSelected ? (
-                      <CheckSquare size={24} color="#4f46e5" />
+                <View className="p-4">
+                  <View className="flex-row items-start">
+                    {/* Selection Checkbox or Child Avatar */}
+                    {selectionMode ? (
+                      <View className="w-10 h-10 mr-3 items-center justify-center">
+                        {isSelected ? (
+                          <CheckSquare size={24} color="#4f46e5" />
+                        ) : (
+                          <Square size={24} color="#9ca3af" />
+                        )}
+                      </View>
                     ) : (
-                      <Square size={24} color="#9ca3af" />
+                      <Image
+                        source={{ uri: task.childAvatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + task.childName }}
+                        className="w-10 h-10 rounded-full mr-3"
+                      />
                     )}
-                  </View>
-                ) : (
-                  <Image
-                    source={{ uri: task.childAvatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + task.childName }}
-                    className="w-10 h-10 rounded-full mr-3"
-                  />
-                )}
-                
-                <View className="flex-1">
-                  {/* Task Name and Child Name */}
-                  <Text className="text-base font-semibold text-gray-900">{task.taskName}</Text>
-                  <Text className="text-sm text-gray-600">{task.childName} • {task.groupName}</Text>
-                  
-                  {/* Task Details */}
-                  <View className="flex-row items-center mt-2">
-                    <View className="flex-row items-center mr-4">
-                      <Coins size={14} color="#10b981" />
-                      <Text className="text-sm font-medium text-green-700 ml-1">{task.famcoinValue} FC</Text>
-                    </View>
                     
-                    <Text className="text-xs text-gray-500">
-                      {task.completedAt 
-                        ? formatDistanceToNow(new Date(task.completedAt), { addSuffix: true })
-                        : format(new Date(task.dueDate), 'MMM d')}
-                    </Text>
+                    <View className="flex-1">
+                      {/* Header Row */}
+                      <View className="flex-row items-start justify-between mb-1">
+                        <View className="flex-1 mr-2">
+                          <Text className="text-base font-semibold text-gray-900 leading-tight">
+                            {task.taskName}
+                          </Text>
+                          <Text className="text-sm text-gray-500 mt-0.5">
+                            {task.childName} • {task.groupName}
+                          </Text>
+                        </View>
+                        
+                        {/* FAMCOIN Badge */}
+                        <View className="bg-green-50 rounded-full px-2.5 py-1 flex-row items-center">
+                          <Coins size={14} color="#10b981" />
+                          <Text className="text-sm font-semibold text-green-700 ml-1">
+                            {task.famcoinValue}
+                          </Text>
+                        </View>
+                      </View>
+                      
+                      {/* Date/Time */}
+                      <View className="flex-row items-center mb-2">
+                        <Clock size={12} color="#9ca3af" />
+                        <Text className="text-xs text-gray-500 ml-1">
+                          {task.completedAt 
+                            ? `Completed ${formatDistanceToNow(new Date(task.completedAt), { addSuffix: true })}`
+                            : `Due ${format(new Date(task.dueDate), 'MMM d, yyyy')}`}
+                        </Text>
+                      </View>
+                      
+                      {/* Status-specific info */}
+                      {task.status === 'parent_rejected' && task.rejectionReason && (
+                        <View className="bg-orange-50 border border-orange-100 rounded-lg p-3 mb-3">
+                          <View className="flex-row items-start">
+                            <AlertCircle size={14} color="#ea580c" />
+                            <View className="flex-1 ml-2">
+                              <Text className="text-xs font-medium text-orange-800 mb-1">
+                                Needs Revision
+                              </Text>
+                              <Text className="text-xs text-orange-700">
+                                {task.rejectionReason}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      )}
+                      
+                      {task.status === 'parent_approved' && task.feedback && (
+                        <View className="bg-green-50 border border-green-100 rounded-lg p-3 mb-3">
+                          <View className="flex-row items-start">
+                            <Check size={14} color="#10b981" />
+                            <View className="flex-1 ml-2">
+                              <Text className="text-xs font-medium text-green-800 mb-1">
+                                Parent Feedback
+                              </Text>
+                              <Text className="text-xs text-green-700">
+                                {task.feedback}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      )}
+                    </View>
                   </View>
-                  
-                  {/* Status-specific info */}
-                  {task.status === 'parent_rejected' && task.rejectionReason && (
-                    <View className="bg-orange-50 rounded-lg p-2 mt-2">
-                      <Text className="text-xs text-orange-800">Reason: {task.rejectionReason}</Text>
-                    </View>
-                  )}
-                  
-                  {task.status === 'parent_approved' && task.feedback && (
-                    <View className="bg-green-50 rounded-lg p-2 mt-2">
-                      <Text className="text-xs text-green-800">Feedback: {task.feedback}</Text>
-                    </View>
-                  )}
                   
                   {/* Complete on Behalf Button */}
-                  {showCompleteButton && onCompleteOnBehalf && (
+                  {showCompleteButton && onCompleteOnBehalf && !selectionMode && (
                     <TouchableOpacity
                       onPress={(e) => {
                         e.stopPropagation();
                         onCompleteOnBehalf(task);
                       }}
-                      className="bg-blue-100 rounded-lg px-3 py-2 mt-2 self-start"
+                      className="mt-3 bg-indigo-50 border border-indigo-100 rounded-lg py-2.5 px-4 flex-row items-center justify-center"
                     >
-                      <Text className="text-sm font-medium text-blue-700">Complete on behalf</Text>
+                      <CheckCircle size={16} color="#4f46e5" />
+                      <Text className="text-sm font-medium text-indigo-700 ml-2">
+                        Complete on behalf
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </View>
-              </View>
               </TouchableOpacity>
             );
           })}
