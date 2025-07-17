@@ -992,18 +992,70 @@ class TaskService {
     parentId: string
   ): Promise<void> {
     try {
-      const { error } = await supabase
+      // First get the task details to create the transaction
+      const { data: taskData, error: fetchError } = await supabase
+        .from('task_completions')
+        .select(`
+          child_id,
+          task_instances!inner (
+            famcoin_value
+          ),
+          children!inner (
+            famcoin_balance
+          )
+        `)
+        .eq('id', taskCompletionId)
+        .single();
+
+      if (fetchError || !taskData) {
+        console.error('Error fetching task for completion:', fetchError);
+        throw new Error('Task not found');
+      }
+
+      // Update task to approved status
+      const { error: updateError } = await supabase
         .from('task_completions')
         .update({
-          status: 'child_completed',
+          status: 'parent_approved',
           completed_at: new Date().toISOString(),
-          completed_by: parentId, // Track who completed it
+          approved_at: new Date().toISOString(),
+          approved_by: parentId,
+          feedback: 'Completed on behalf by parent',
         })
         .eq('id', taskCompletionId);
       
-      if (error) {
-        console.error('Error completing task on behalf:', error);
-        throw error;
+      if (updateError) {
+        console.error('Error updating task status:', updateError);
+        throw updateError;
+      }
+
+      // Create the famcoin transaction
+      const { error: transactionError } = await supabase
+        .from('famcoin_transactions')
+        .insert({
+          child_id: taskData.child_id,
+          amount: taskData.task_instances.famcoin_value,
+          type: 'earned',
+          task_completion_id: taskCompletionId,
+          reason: 'Task completed on behalf by parent',
+          created_by: parentId,
+        });
+
+      if (transactionError) {
+        console.error('Error creating transaction:', transactionError);
+        throw transactionError;
+      }
+
+      // Update child's balance
+      const newBalance = (taskData.children.famcoin_balance || 0) + taskData.task_instances.famcoin_value;
+      const { error: balanceError } = await supabase
+        .from('children')
+        .update({ famcoin_balance: newBalance })
+        .eq('id', taskData.child_id);
+
+      if (balanceError) {
+        console.error('Error updating balance:', balanceError);
+        throw balanceError;
       }
     } catch (error) {
       console.error('Failed to complete task on behalf:', error);

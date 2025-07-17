@@ -360,7 +360,7 @@ export default function ParentReviewsScreen() {
             try {
               await taskService.completeTaskOnBehalf(task.id, user.id);
               loadData(true);
-              Alert.alert('Success', 'Task marked as completed');
+              Alert.alert('Success', `Task approved and ${task.famcoinValue} FAMCOINs awarded!`);
             } catch (error) {
               console.error('Error completing task on behalf:', error);
               Alert.alert('Error', 'Failed to complete task');
@@ -671,9 +671,16 @@ export default function ParentReviewsScreen() {
         <TaskReviewModal
           isVisible={isReviewModalOpen}
           task={{
-            ...selectedTask,
-            taskDescription: selectedTask.taskDescription || '',
+            id: selectedTask.id,
+            taskName: selectedTask.taskName,
+            childName: selectedTask.childName,
+            childAvatar: selectedTask.childAvatar,
+            famcoinValue: selectedTask.famcoinValue,
             effortScore: selectedTask.effortScore,
+            completedAt: selectedTask.completedAt || new Date().toISOString(),
+            dueDate: selectedTask.dueDate,
+            photoUrl: selectedTask.photoUrl,
+            photoRequired: selectedTask.photoRequired,
           }}
           onClose={() => {
             setIsReviewModalOpen(false);
